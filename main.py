@@ -647,7 +647,16 @@ def longitudinal_section(df):
 
     with col2:
         with st.expander("**📊 Resultados Estatísticos**", expanded=True):
-            # 1. Resultados da Regressão Linear
+            # 1. Teste ANOVA entre grupos
+
+            st.markdown("**Teste ANOVA**")
+            st.markdown("""
+                        **Estatística:** 39.824  
+                        **Valor-p:** 0.0000
+                        """)
+            st.success("Diferença significativa entre grupos (p < 0.001)")
+            st.markdown("---")
+            # 2. Resultados da Regressão Linear
             st.markdown("**Modelo de Regressão Linear**")
             st.markdown(f"""
             **R² = 0.118**
@@ -659,17 +668,6 @@ def longitudinal_section(df):
             -0.0244 ± 0.004
             """)
 
-            # 2. Teste ANOVA entre grupos
-            st.markdown("---")
-            st.markdown("**Teste ANOVA**")
-            st.markdown("""
-            **Estatística:** 39.824  
-            **Valor-p:** 0.0000
-            """)
-
-            st.success("Diferença significativa entre grupos (p < 0.001)")
-
-
 def metrics_section(df_cross, df_long):
     st.header("Métricas e Qualidade dos Dados")
 
@@ -677,15 +675,9 @@ def metrics_section(df_cross, df_long):
     st.subheader("1. Limpeza e Pré-processamento")
     st.markdown("""
     - **Exclusão de sujeitos com dados faltantes**: 
-      Removemos todos os registros onde valores essenciais como `Age`, `MMSE`, `CDR` ou `nWBV` estavam ausentes.
-      Essa abordagem garante que nossas análises sejam baseadas apenas em dados completos.
-    - **Padronização**: 
-      Todos os nomes de colunas foram padronizados para formato snake_case (ex: 'M/F' → 'm_f').
-    """)
-
-    # Métricas de limpeza em colunas
+      Removemos todos os registros onde valores essenciais como idade, volume cerebral, ídice de CDR e MMSE estavam ausentes.""")
+    # Dados iciciais e finais em cada um dos bancos de dados:
     col1, col2 = st.columns(2)
-
     with col1:
         st.markdown("**Dados Transversais**")
         st.metric("Registros originais", len(df_cross))
@@ -695,10 +687,8 @@ def metrics_section(df_cross, df_long):
         st.markdown("**Dados Longitudinais**")
         st.metric("Registros originais", len(df_long))
         st.metric("Registros após limpeza", len(df_long.dropna(subset=['age', 'mmse', 'cdr', 'nwbv'])))
-
     # Divisão visual
     st.markdown("---")
-
     # Seção 2: Explicação Estatística
     st.subheader("2. Testes Estatísticos")
 
@@ -726,61 +716,50 @@ def metrics_section(df_cross, df_long):
         st.latex(r'''
         F = \frac{\text{Variância entre grupos}}{\text{Variância dentro dos grupos}}
         ''')
+    st.markdown("""
+        ### Kruskal-Wallis
+        """)
+    with st.expander("🔍 Clique para expandir a explicação"):
+        st.markdown("""
+        **O que é?**  
+        O teste de Kruskal-Wallis é um teste estatístico não paramétrico que compara as distribuições de três ou mais grupos independentes.
+
+        **Quando usar?**  
+        - Quando os dados **não** seguem distribuição normal (teste de Shapiro-Wilk)  
+        - Quando há heterogeneidade de variâncias (teste de Levene)  
+        - Para dados ordinais ou quando há outliers que podem afetar a ANOVA  
+
+        **Interpretação:**  
+        - Valor-p < 0.05 → Pelo menos um grupo difere significativamente  
+        - Valor-p ≥ 0.05 → Nenhuma diferença significativa detectada  
+
+        **Fórmula básica:**  
+        """)
+        st.latex(r'''
+        H = \frac{12}{N(N+1)} \sum \frac{R_i^2}{n_i} - 3(N+1)
+        ''')
+    st.markdown("""
+            ### Regressão Linear Múltipla
+            """)
+    with st.expander("🔍 Clique para expandir a explicação"):
+        st.markdown("""
+        **O que foi feito?**  
+        Ajustamos um modelo de **Regressão Linear Múltipla** para analisar a relação entre o volume cerebral normalizado (**nWBV**) e dois fatores:
+        - O tempo desde a linha de base 
+        - A presença de demência
+
+        **Como foi feito?**  
+        - Os grupos **Demente** e **Convertido** foram unificados em um único grupo: **Demente/Convertido**  
+        - Criamos uma variável binária (**Dementia**) para indicar se um indivíduo pertence a esse grupo (1) ou não (0)  
+        - Ajustamos um modelo de regressão linear com:""")
+        st.latex(r'''
+            nWBV = \beta_0 + \beta_1 (\text{Years Since Baseline}) + \beta_2 (\text{Dementia}) + \varepsilon
+            ''')
 
         st.markdown("""
-        **Exemplo no nosso contexto:**  
-        Usamos ANOVA para comparar:  
-        - Volume cerebral (nWBV) entre grupos (Nondemented, Converted, Demented)  
-        - Escores MMSE entre diferentes estágios de CDR  
-        """)
+            - O modelo ajuda a entender o impacto do tempo e da demência na atrofia cerebral (redução de nWBV).  
+            """)
 
-    # Comparação com Kruskal-Wallis
-    st.markdown("""
-    ### ANOVA vs Kruskal-Wallis
-    """)
-
-    st.table(pd.DataFrame({
-        'Característica': ['Pressupostos', 'Tipo de dados', 'Robustez'],
-        'ANOVA': [
-            'Normalidade, homogeneidade de variâncias',
-            'Dados paramétricos',
-            'Sensível a outliers'
-        ],
-        'Kruskal-Wallis': [
-            'Nenhum pressuposto',
-            'Dados não-paramétricos/ordinais',
-            'Robusto a outliers'
-        ]
-    }))
-
-    # Divisão visual
-    st.markdown("---")
-
-    # Seção 3: Exemplo Prático
-    st.subheader("3. Aplicação no Nosso Dataset")
-
-    # Selecionar variável para demonstração
-    demo_var = st.selectbox(
-        "Selecione uma variável para demonstração estatística:",
-        options=['nwbv', 'mmse', 'age']
-    )
-
-    # Executar ANOVA
-    from scipy.stats import f_oneway
-    groups = [df_long[df_long['group'] == g][demo_var] for g in df_long['group'].unique()]
-
-    # Verificar normalidade
-    from scipy.stats import shapiro
-    normal = all(shapiro(group)[1] > 0.05 for group in groups)
-
-    if normal:
-        f_val, p_val = f_oneway(*groups)
-        st.success(f"✅ Dados normais (p > 0.05 no teste de Shapiro-Wilk)")
-        st.metric("Resultado ANOVA",
-                  f"F = {f_val:.2f}, p = {p_val:.4f}",
-                  help="Valor-p < 0.05 indica diferenças significativas")
-    else:
-        st.warning("⚠️ Dados não-normais - Use Kruskal-Wallis")
 def main():
     # Carrega os dados
     df_cross, df_long = load_data()
