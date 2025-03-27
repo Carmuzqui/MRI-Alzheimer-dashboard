@@ -6,11 +6,79 @@ import seaborn as sns
 from scipy import stats
 from scipy.stats import linregress
 from sklearn.metrics import r2_score
+from streamlit_option_menu import option_menu
+import qrcode
+import io
+
+# from PIL import Image
 
 # Configurações iniciais
 st.set_page_config(page_title="Dashboard Alzheimer", layout="wide", page_icon="🧠")
 sns.set_palette("husl")
-#plt.style.use('seaborn-v0_8')
+
+# Estilo CSS personalizado
+st.markdown("""
+<style>
+    /* Estilo geral para o tema escuro */
+    [data-testid="stAppViewContainer"] {
+        background-color: #1E1E1E;
+        color: #FFFFFF;
+    }
+
+    /* Estilo para o container do menu de opções */
+    .stSelectbox, .stMultiSelect {
+        background-color: transparent !important;
+    }
+
+    /* Estilo para o menu de opções */
+    #MainMenu {
+        background-color: transparent !important;
+    }
+
+    /* Estilo para os botões do menu */
+    .nav-link {
+        background-color: rgba(60, 60, 60, 0.5) !important;
+        color: #FFFFFF !important;
+        border-radius: 5px !important;
+        margin-bottom: 5px !important;
+        transition: all 0.3s ease;
+    }
+
+    /* Estilo para o botão selecionado */
+    .nav-link.active {
+        background-color: #02ab21 !important;
+        color: #FFFFFF !important;
+    }
+
+    /* Estilo para hover nos botões */
+    .nav-link:hover {
+        background-color: rgba(80, 80, 80, 0.7) !important;
+    }
+
+    /* Estilo para os ícones */
+    .nav-link .icon {
+        color: #FFD700 !important;  /* Amarelo para os ícones */
+    }
+
+    /* Remover a borda do container do menu */
+    .css-1l4firl {
+        border: none !important;
+        background-color: transparent !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+def create_qr_code(url):
+    qr = qrcode.QRCode(version=1, box_size=10, border=5)
+    qr.add_data(url)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="white", back_color="transparent")
+    return img
+
+def add_vertical_space(num_lines: int = 1):
+    """Add vertical space to your Streamlit app."""
+    for _ in range(num_lines):
+        st.markdown('<br>', unsafe_allow_html=True)
 
 def remove_background(ax):
     ax.set_facecolor('none')
@@ -36,8 +104,8 @@ def remove_background(ax):
 @st.cache_data
 def load_data():
     """Carrega e prepara os dados"""
-    cross = pd.read_csv("oasis_cross-sectional.csv")
-    long = pd.read_csv("oasis_longitudinal.csv")
+    cross = pd.read_csv("data/oasis_cross-sectional.csv")
+    long = pd.read_csv("data/oasis_longitudinal.csv")
 
     # Padronizar nomes das colunas
     cross.columns = cross.columns.str.strip().str.lower().str.replace('/', '_')
@@ -466,21 +534,80 @@ def metrics_section(df_cross, df_long):
 def main():
     # Carrega os dados
     df_cross, df_long = load_data()
-
+    
     # Menu lateral
-    st.sidebar.title("Navegação")
-    section = st.sidebar.radio("Seções", ["Motivação", "Longitudinal", "Métricas"])
+    with st.sidebar:
+        st.title("Dashboard de Alzheimer")
+        # Menu de opções
+        selected = option_menu(
+            menu_title=None,
+            options=["Início", "Motivação", "Longitudinal", "Métricas"],
+            icons=["house", "lightbulb", "graph-up", "clipboard-data"],
+            menu_icon="cast",
+            default_index=0,
+            orientation="vertical",  # Mudado para vertical
+            styles={
+                "container": {"padding": "0!important", "background-color": "transparent"},
+                "icon": {"color": "#FFD700", "font-size": "25px"},  # Amarelo para os ícones
+                "nav-link": {
+                    "font-size": "16px", 
+                    "text-align": "left", 
+                    "margin":"0px", 
+                    "padding": "10px",
+                    "--hover-color": "rgba(80, 80, 80, 0.7)"
+                },
+                "nav-link-selected": {"background-color": "#02ab21"},
+            }
+        )
 
-    # Seção selecionada
-    if section == "Motivação":
+    # Conteúdo principal baseado na seleção
+    if selected == "Início":
+                
+        st.header("Bem-vindo ao análise de Alzheimer")
+                
+        # Criando colunas para melhor layout
+        col1, col2 = st.columns([3, 1])
+        
+        with col1:
+            st.write("Vídeo introdutório de algumas características do Alzheimer:")
+            
+            # Carregando o vídeo
+            video_file = open('media/alzheimer.mp4', 'rb')
+            video_bytes = video_file.read()
+            
+            # Exibindo o vídeo
+            st.video(video_bytes)
+        
+        with col2:
+            add_vertical_space(2)  # Adiciona dois espaços verticais
+            st.write("Principais recursos:")
+            st.write("• Análise de dados de pacientes")
+            st.write("• Visualizações interativas")
+            st.write("• Insights sobre Alzheimer")
+            
+            # Criação do QR code
+            url = "https://mri-alzheimer-dashboard-k2hhdkapmydcfb8zdnvfxe.streamlit.app/"
+            qr_img = create_qr_code(url)
+            
+            # Convertendo a imagem para bytes
+            img_byte_arr = io.BytesIO()
+            qr_img.save(img_byte_arr, format='PNG')
+            img_byte_arr = img_byte_arr.getvalue()
+            
+            st.image(img_byte_arr, caption='Escaneie para acessar o dashboard')
+            
+
+    elif selected == "Motivação":
         motivation_section(df_cross)
-    elif section == "Longitudinal":
-        #st.warning("Implementação em progresso - esta seção será desenvolvida na próxima iteração")
+
+    elif selected == "Longitudinal":
         longitudinal_section(df_long)
 
-    elif section == "Métricas":
-        #st.warning("Implementação em progresso - esta seção será desenvolvida na próxima iteração")
+    elif selected == "Métricas":
         metrics_section(df_cross, df_long)
+        
+    
+        
 
 
 if __name__ == "__main__":
