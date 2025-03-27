@@ -10,6 +10,9 @@ from streamlit_option_menu import option_menu
 import qrcode
 import io
 
+from plotly.subplots import make_subplots
+import plotly.graph_objects as go
+
 # from PIL import Image
 
 # Configurações iniciais
@@ -130,19 +133,99 @@ def demographic_info(df):
 
 
 def plot_age_distribution(df):
-    """Cria gráfico de distribuição de idade em percentual"""
-    fig, ax = plt.subplots(figsize=(8, 4))
-    n, bins, patches = ax.hist(df['age'], bins=15, color='skyblue',
-                               edgecolor='black',
-                               weights=np.ones(len(df['age'])) / len(df['age']) * 100)
+    """Cria gráfico de distribuição de idade em percentual, subdividido por gênero"""
+    # Definir bins de 10 em 10 anos, começando do 0
+    bins = list(range(0, 101, 10))  # 0, 10, 20, ..., 90, 100
+    labels = [f'{i}-{i+9}' for i in range(0, 90, 10)] + ['90+']
 
-    ax.set_title('Distribuição de Idade dos Participantes (%)', fontsize=14)
-    ax.set_xlabel('Idade (anos)', fontsize=12)
-    ax.set_ylabel('Percentual de Participantes (%)', fontsize=12)
-    ax.grid(axis='y', alpha=0.3)
-    ax.set_ylim(0, 30)
-    remove_background(ax)
-    st.pyplot(fig)
+    # Calcular a distribuição
+    df['age_group'] = pd.cut(df['age'], bins=bins, labels=labels, right=False, include_lowest=True)
+    
+    # Calcular percentuais totais e por gênero
+    total_distribution = df['age_group'].value_counts(normalize=True) * 100
+    gender_distribution = df.groupby(['age_group', 'm_f']).size().unstack(fill_value=0)
+    gender_percentages = gender_distribution.div(gender_distribution.sum(axis=1), axis=0)
+
+     # Garantir que todas as faixas etárias estejam presentes, mesmo que com valor zero
+    for label in labels:
+        if label not in total_distribution.index:
+            total_distribution[label] = 0
+            gender_percentages.loc[label] = [0, 0]
+    
+    # Ordenar os dados
+    total_distribution = total_distribution.sort_index()
+    gender_percentages = gender_percentages.sort_index()
+    
+    # Calcular os valores para as barras
+    male_values = total_distribution * gender_percentages['M']
+    female_values = total_distribution * gender_percentages['F']
+
+    # Criar o gráfico com Plotly
+    plotly_fig = go.Figure()
+
+    # Adicionar barras para homens
+    plotly_fig.add_trace(
+        go.Bar(
+            x=male_values.index,
+            y=male_values.values,
+            name='Masculino',
+            marker_color='#13ecc1',  # Azul mais intenso
+            hovertemplate='Faixa Etária: %{x}<br>Total: %{customdata:.1f}%<br>Masculino: %{text:.1f}%<extra></extra>',
+            text=gender_percentages['M'] * 100,
+            customdata=total_distribution,
+            textposition='none'  # Remove os valores das barras
+        )
+    )
+
+    # Adicionar barras para mulheres
+    plotly_fig.add_trace(
+        go.Bar(
+            x=female_values.index,
+            y=female_values.values,
+            name='Feminino',
+            marker_color='#fa2eea',  # Rosa mais intenso
+            hovertemplate='Faixa Etária: %{x}<br>Total: %{customdata:.1f}%<br>Feminino: %{text:.1f}%<extra></extra>',
+            text=gender_percentages['F'] * 100,
+            customdata=total_distribution,
+            textposition='none'  # Remove os valores das barras
+        )
+    )
+
+    # Configurar o layout
+    plotly_fig.update_layout(
+        title='Distribuição de Idade dos Participantes por Gênero (%)',
+        xaxis_title='Faixa etária (anos)',
+        yaxis_title='Percentual de participantes (%)',
+        barmode='stack',
+        yaxis_range=[0, max(total_distribution) * 1.1],
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        font=dict(color='white'),
+        title_font=dict(size=14),
+        xaxis_title_font=dict(size=12),
+        yaxis_title_font=dict(size=12),
+    )
+
+    plotly_fig.update_xaxes(gridcolor='rgba(255,255,255,0.1)', categoryorder='array', categoryarray=labels)
+    plotly_fig.update_yaxes(gridcolor='rgba(255,255,255,0.1)', tickformat='.1f')
+
+    st.plotly_chart(plotly_fig, use_container_width=True)
+
+
+# def plot_age_distribution(df):
+#     """Cria gráfico de distribuição de idade em percentual"""
+#     fig, ax = plt.subplots(figsize=(8, 4))
+#     n, bins, patches = ax.hist(df['age'], bins=15, color='skyblue',
+#                                edgecolor='black',
+#                                weights=np.ones(len(df['age'])) / len(df['age']) * 100)
+
+#     ax.set_title('Distribuição de Idade dos Participantes (%)', fontsize=14)
+#     ax.set_xlabel('Idade (anos)', fontsize=12)
+#     ax.set_ylabel('Percentual de Participantes (%)', fontsize=12)
+#     ax.grid(axis='y', alpha=0.3)
+#     ax.set_ylim(0, 30)
+#     remove_background(ax)
+#     st.pyplot(fig)
 
 
 def plot_scatter_age_nwbv(df, threshold):
@@ -577,6 +660,13 @@ def main():
             
             # Exibindo o vídeo
             st.video(video_bytes)
+            
+            # Adicionando a referência alinhada à esquerda
+            st.markdown("""
+            <div style="font-size: 0.8em; color: gray; text-align: center; margin-top: 5px;">
+            Fonte: <a href="https://www.nia.nih.gov/health/alzheimers-causes-and-risk-factors/what-happens-brain-alzheimers-disease" >National Institute on Aging</a>
+            </div>
+            """, unsafe_allow_html=True)
         
         with col2:
             add_vertical_space(2)  # Adiciona dois espaços verticais
