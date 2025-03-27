@@ -132,6 +132,18 @@ def demographic_info(df):
         st.metric("Percentual de mulheres", f"{percent_mulheres:.1f}%")
 
 
+def demographic_info_linha(df):
+    """Exibe informações demográficas básicas em formato vertical"""
+    media_idade = df['age'].mean()
+    desvio_padrao = df['age'].std()
+    percent_mulheres = (df['m_f'].value_counts(normalize=True)['F'] * 100)
+
+    # Container para organizar as métricas verticalmente
+    with st.container():
+        st.metric("Média de idade", f"{media_idade:.1f} anos")
+        st.metric("Desvio padrão idade", f"{desvio_padrao:.1f} anos")
+        st.metric("Percentual de mulheres", f"{percent_mulheres:.1f}%")
+
 def plot_age_distribution(df):
     """Cria gráfico de distribuição de idade em percentual, subdividido por gênero"""
     # Definir bins de 10 em 10 anos, começando do 0
@@ -275,8 +287,8 @@ def plot_scatter_age_nwbv(df, threshold):
     """
     remove_background(ax)
     st.pyplot(fig)
-    with st.expander("Estatísticas de Regressão"):
-        st.code(stats_text)
+    #with st.expander("Estatísticas de Regressão"):
+    #    st.code(stats_text)
 
 
 def plot_boxplot_cdr_mmse(df, threshold):
@@ -340,38 +352,67 @@ def plot_violin_age_cdr(df, threshold):
 # Interface principal ==========================================================
 
 def motivation_section(df):
-    st.header("Análise Transversal de Dados de Alzheimer")
-    st.write("""
-    Este dashboard explora dados de ressonância magnética (MRI) e marcadores 
-    clínicos de pacientes com Alzheimer em diferentes estágios e indivíduos 
-    saudáveis. A análise transversal permite comparar grupos em um único 
-    momento no tempo.
-    """)
+    # Título com caixa expansiva de texto informativo
+    col_title, col_expand = st.columns([0.7, 0.3])
+    with col_title:
+        st.header("Análise Transversal de Dados de Alzheimer")
+    with col_expand:
+        with st.expander("ℹ️ Informações"):
+            st.write("""
+            Este dashboard explora dados de ressonância magnética (MRI) e marcadores 
+            clínicos de pacientes com Alzheimer em diferentes estágios e indivíduos 
+            saudáveis. A análise transversal permite comparar grupos em um único 
+            momento no tempo.
+            """)
 
-    demographic_info(df)
+    # Seção superior com informações demográficas e gráfico de distribuição
+    col_stats, col_graph = st.columns([0.2, 0.8])  # Ajuste as proporções conforme necessário
 
-    # Gráfico de distribuição de idade (original - sem threshold)
-    plot_age_distribution(df)
+    with col_stats:
+        # Chamada modificada para demographic_info (você precisará adaptar essa função)
+        st.markdown("**Estatísticas Demográficas**")
+        demographic_info_linha(df)  # Esta função precisa retornar os valores em formato vertical
 
-    # Slider para threshold (agora colocado APÓS o gráfico de distribuição)
-    min_age, max_age = int(df['age'].min()), int(df['age'].max())
-    threshold = st.slider("Selecione o threshold de idade para as análises abaixo:",
-                          min_value=min_age,
-                          max_value=max_age,
-                          value=55,
-                          key="motivation_threshold")
+    with col_graph:
+        # Gráfico de distribuição de idade com mais espaço
+        plot_age_distribution(df)
 
-    st.subheader("Marcadores (Análise por Threshold)")
-    col1, col2 = st.columns(2)
+    # Seção do limiar de idade com slider
+    st.markdown("---")
+    col_threshold_label, col_threshold_slider = st.columns([0.35, 0.65])
+    with col_threshold_label:
+        st.subheader("Análise por CDR")
+    with col_threshold_slider:
+        min_age, max_age = int(df['age'].min()), int(df['age'].max())
+        threshold = st.slider(
+            "",
+            min_value=min_age,
+            max_value=max_age,
+            value=55,
+            key="motivation_threshold"
+        )
+
+    # Três gráficos superiores lado a lado
+    col1, col2, col3 = st.columns(3)
 
     with col1:
-        plot_scatter_age_nwbv(df, threshold)
-        plot_boxplot_cdr_mmse(df, threshold)
-        plot_violin_nwbv_cdr(df, threshold)
+        plot_violin_age_cdr(df, threshold)
 
     with col2:
+        plot_violin_nwbv_cdr(df, threshold)
+
+    with col3:
+        plot_boxplot_cdr_mmse(df, threshold)
+
+    # Dois gráficos médios lado a lado
+    st.subheader("Análise por Idade")
+    col_mid1, col_mid2 = st.columns(2)
+
+    with col_mid1:
         plot_scatter_mmse_age(df, threshold)
-        plot_violin_age_cdr(df, threshold)
+
+    with col_mid2:
+        plot_scatter_age_nwbv(df, threshold)
 
 
 def longitudinal_section(df):
@@ -382,14 +423,15 @@ def longitudinal_section(df):
     indivíduos que converteram de não dementes para dementes durante o estudo.
     """)
 
-    # Informações demográficas
-    demographic_info(df)
+
 
     # Create columns for age distribution and correlation matrix
     col1, col2 = st.columns(2)
 
     with col1:
         # Gráfico de distribuição de idade
+        # Informações demográficas
+        demographic_info(df)
         plot_age_distribution(df)
 
     with col2:
