@@ -185,7 +185,7 @@ def plot_age_distribution(df):
             y=male_values.values,
             name='Masculino',
             marker_color='#13ecc1',  # Azul mais intenso
-            hovertemplate='Faixa Etária: %{x}<br>Total: %{customdata:.1f}%<br>Masculino: %{text:.1f}%<extra></extra>',
+            hovertemplate='Faixa etária: %{x}<br>Total: %{customdata:.1f}%<br>Masculino: %{text:.1f}%<extra></extra>',
             text=gender_percentages['M'] * 100,
             customdata=total_distribution,
             textposition='none'  # Remove os valores das barras
@@ -199,7 +199,7 @@ def plot_age_distribution(df):
             y=female_values.values,
             name='Feminino',
             marker_color='#fa2eea',  # Rosa mais intenso
-            hovertemplate='Faixa Etária: %{x}<br>Total: %{customdata:.1f}%<br>Feminino: %{text:.1f}%<extra></extra>',
+            hovertemplate='Faixa etária: %{x}<br>Total: %{customdata:.1f}%<br>Feminino: %{text:.1f}%<extra></extra>',
             text=gender_percentages['F'] * 100,
             customdata=total_distribution,
             textposition='none'  # Remove os valores das barras
@@ -208,7 +208,7 @@ def plot_age_distribution(df):
 
     # Configurar o layout
     plotly_fig.update_layout(
-        title='Distribuição de Idade dos Participantes por Gênero (%)',
+        title='Distribuição de idade dos participantes por gênero (%)',
         xaxis_title='Faixa etária (anos)',
         yaxis_title='Percentual de participantes (%)',
         barmode='stack',
@@ -268,9 +268,9 @@ def plot_scatter_age_nwbv(df, threshold):
         ax.plot(df_above['age'], intercept_above + slope_above * df_above['age'],
                 color='red', linestyle='--', label=f'≥ {threshold} (R²={r2_above:.2f})')
 
-    ax.set_title(f'Idade vs Volume Cerebral (Threshold: {threshold})')
+    ax.set_title(f'Volume cerebral vs Idade (Limiar: {threshold})')
     ax.set_xlabel('Idade (anos)')
-    ax.set_ylabel('Volume Cerebral Normalizado')
+    ax.set_ylabel('Volume cerebral normalizado (nWBV)')
     ax.legend()
 
     # Adicionar informações de ajuste
@@ -300,10 +300,12 @@ def plot_boxplot_cdr_mmse(df, threshold):
 
     fig, ax = plt.subplots(figsize=(8, 4))
     sns.boxplot(data=df, x='cdr', y='mmse', hue='age_group', ax=ax)
-    ax.set_title(f'CDR vs MMSE (Threshold: {threshold})')
-    ax.set_xlabel('Clinical Dementia Rating (CDR)')
-    ax.set_ylabel('Mini-Mental State Examination (MMSE)')
-    ax.legend(title='Faixa Etária',labelcolor= 'white')
+    ax.set_title(f'MMSE vs CDR (Limiar: {threshold})', fontsize=18)
+    ax.set_xlabel('Taxa de demência clínica (CDR)', fontsize=16)
+    ax.set_ylabel('Mini-Exame do estado mental (MMSE)', fontsize=16)
+    # ax.legend(title='Faixa etária',labelcolor= 'white')
+    legend = ax.legend(title='Faixa etária', labelcolor='white', title_fontsize='10')
+    legend.get_title().set_color('white')  # Define a cor do título da legenda como branco
     remove_background(ax)
     st.pyplot(fig)
 
@@ -315,10 +317,12 @@ def plot_violin_nwbv_cdr(df, threshold):
     fig, ax = plt.subplots(figsize=(8, 4))
     sns.violinplot(data=df, x='cdr', y='nwbv', hue='age_group',
                    split=True, inner="quart", ax=ax)
-    ax.set_title(f'Volume Cerebral vs CDR (Threshold: {threshold})')
-    ax.set_xlabel('Clinical Dementia Rating (CDR)')
-    ax.set_ylabel('Volume Cerebral Normalizado')
-    ax.legend(title='Faixa Etária')
+    ax.set_title(f'Volume cerebral vs CDR (Limiar: {threshold})', fontsize=18)
+    ax.set_xlabel('Taxa de demência clínica (CDR)', fontsize=16)
+    ax.set_ylabel('Volume cerebral normalizado (nWBV)', fontsize=16)
+    # ax.legend(title='Faixa etária')
+    legend = ax.legend(title='Faixa etária', labelcolor='white', title_fontsize='10')
+    legend.get_title().set_color('white')  # Define a cor do título da legenda como branco
     remove_background(ax)
     st.pyplot(fig)
 
@@ -330,9 +334,11 @@ def plot_scatter_mmse_age(df, threshold):
     fig, ax = plt.subplots(figsize=(8, 4))
     sns.scatterplot(data=df, x='age', y='mmse', hue='age_group',
                     alpha=0.7, ax=ax)
-    ax.set_title(f'MMSE vs Idade (Threshold: {threshold})')
+    ax.set_title(f'MMSE vs Idade (Limiar: {threshold})')
     ax.set_xlabel('Idade (anos)')
-    ax.set_ylabel('Mini-Mental State Examination (MMSE)')
+    ax.set_ylabel('Mini-Exame do estado mental (MMSE)')
+    legend = ax.legend(title='Faixa etária', labelcolor='white', title_fontsize='10')
+    legend.get_title().set_color('white')  # Define a cor do título da legenda como branco
     remove_background(ax)
     st.pyplot(fig)
 
@@ -344,10 +350,12 @@ def plot_violin_age_cdr(df, threshold):
     fig, ax = plt.subplots(figsize=(8, 4))
     sns.violinplot(data=df, x='cdr', y='age', hue='age_group',
                    split=True, inner="quart", ax=ax)
-    ax.set_title(f'Idade vs CDR (Threshold: {threshold})')
-    ax.set_xlabel('Clinical Dementia Rating (CDR)')
-    ax.set_ylabel('Idade (anos)')
-    ax.legend(title='Faixa Etária')
+    ax.set_title(f'Idade vs CDR (Limiar: {threshold})', fontsize=18)
+    ax.set_xlabel('Taxa de demência clínica (CDR)', fontsize=16)
+    ax.set_ylabel('Idade (anos)', fontsize=16)
+    # ax.legend(title='Faixa etária')
+    legend = ax.legend(title='Faixa etária', labelcolor='white', title_fontsize='10')
+    legend.get_title().set_color('white')  # Define a cor do título da legenda como branco
     remove_background(ax)
     st.pyplot(fig)
 
@@ -373,7 +381,7 @@ def motivation_section(df):
 
     with col_stats:
         # Chamada modificada para demographic_info (você precisará adaptar essa função)
-        st.markdown("**Estatísticas Demográficas**")
+        st.markdown("**Estatísticas demográficas**")
         demographic_info_linha(df)  # Esta função precisa retornar os valores em formato vertical
 
     with col_graph:
@@ -388,7 +396,7 @@ def motivation_section(df):
     with col_threshold_slider:
         min_age, max_age = int(df['age'].min()), int(df['age'].max())
         threshold = st.slider(
-            "",
+            "Limiar",
             min_value=min_age,
             max_value=max_age,
             value=55,
@@ -439,7 +447,7 @@ def longitudinal_section(df):
 
     with col2:
         # Matriz de correlação (excluindo ASF) com novo gradiente
-        st.subheader("Matriz de Correlação")
+        st.subheader("Matriz de correlação")
         numeric_cols = df.select_dtypes(include=np.number).columns
         numeric_cols = numeric_cols.drop(['asf', 'visit', 'mr delay'], errors='ignore')  # Remove ASF
         corr = df[numeric_cols].corr()
