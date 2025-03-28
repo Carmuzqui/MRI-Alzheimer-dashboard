@@ -10,6 +10,8 @@ from streamlit_option_menu import option_menu
 import qrcode
 import io
 import statsmodels.api as sm
+from statsmodels.formula.api import ols
+
 
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
@@ -573,6 +575,17 @@ def longitudinal_section(df):
         return
 
     # Criar layout
+    VAR = 'nwbv'
+
+    # Processar dados
+    df = df.copy()
+    df['group_type'] = df['group'].replace({'Demented': 'Demented', 'Converted': 'Demented'})
+
+    # Calcular idade real (idade na primeira visita + anos desde baseline)
+    df['first_visit_age'] = df.groupby('subject id')['age'].transform('first')
+    df['years_since_baseline'] = df['mr delay'] / 365.25
+    df['real_age'] = df['first_visit_age'] + df['years_since_baseline']
+
     col1, col2 = st.columns([6, 4])
 
     with col1:
@@ -587,14 +600,14 @@ def longitudinal_section(df):
         fig, ax = plt.subplots(figsize=(10, 6))
 
         # Verificar quais grupos existem após padronização
-        existing_groups = [g for g in colors.keys() if g in df['Group_Type'].unique()]
+        existing_groups = [g for g in colors.keys() if g in df['group_type'].unique()]
 
         if not existing_groups:
             st.error("Nenhum grupo válido encontrado após padronização")
             return
 
         for group in existing_groups:
-            group_data = df[df['Group_Type'] == group]
+            group_data = df[df['group_type'] == group]
 
             if len(group_data) < 3:  # Mínimo de pontos para regressão
                 st.warning(f"Dados insuficientes para {group} (n={len(group_data)})")
@@ -602,7 +615,7 @@ def longitudinal_section(df):
 
             # Plotar pontos
             sns.scatterplot(
-                x='Years_Since_Baseline',
+                x='real_age',
                 y=VAR,
                 data=group_data,
                 color=colors[group],
@@ -614,14 +627,14 @@ def longitudinal_section(df):
 
             # Ajustar regressão
             try:
-                X = sm.add_constant(group_data['Years_Since_Baseline'])
+                X = sm.add_constant(group_data['real_age'])
                 y = group_data[VAR]
                 model = sm.OLS(y, X).fit()
 
                 # Gerar predições
                 x_pred = np.linspace(
-                    group_data['Years_Since_Baseline'].min(),
-                    group_data['Years_Since_Baseline'].max(),
+                    group_data['real_age'].min(),
+                    group_data['real_age'].max(),
                     100
                 )
                 y_pred = model.predict(sm.add_constant(x_pred))
@@ -636,9 +649,9 @@ def longitudinal_section(df):
             except Exception as e:
                 st.warning(f"Erro na regressão para {group}: {str(e)}")
 
-        ax.set_title(f'Evolução do {VAR.upper()} ao Longo do Tempo', pad=20)
+        ax.set_title(f'Evolução do {VAR.upper()} por Idade', pad=20)
         ax.set_ylabel(VAR.upper())
-        ax.set_xlabel('Anos desde a Linha de Base')
+        ax.set_xlabel('Idade (anos)')
         ax.legend(title='Grupo Clínico', frameon=True)
         ax.grid(False)
         sns.despine()
@@ -647,27 +660,95 @@ def longitudinal_section(df):
 
     with col2:
         with st.expander("**📊 Resultados Estatísticos**", expanded=True):
-            # 1. Teste ANOVA entre grupos
+            # ANCOVA (ANOVA com covariável de idade)
+            try:
+                # Garantir que o nome do grupo está consistente
+                df['group_type'] = df['group_type'].replace({'Demented/Converted': 'Demented'})
 
-            st.markdown("**Teste ANOVA**")
-            st.markdown("""
-                        **Estatística:** 39.824  
-                        **Valor-p:** 0.0000
-                        """)
-            st.success("Diferença significativa entre grupos (p < 0.001)")
-            st.markdown("---")
-            # 2. Resultados da Regressão Linear
-            st.markdown("**Modelo de Regressão Linear**")
-            st.markdown(f"""
-            **R² = 0.118**
+                model_ancova = ols(f'{VAR} ~ C(group_type) + real_age', data=df).fit()
+                anova_table = sm.stats.anova_lm(model_ancova, typ=2)
 
-            **Anos (coef. ± EP):**  
-            -0.0031 ± 0.001
+                # Coeficientes - agora usando os nomes corretos conforme saída do modelo
+                coef = model_ancova.params
+                se = model_ancova.bse
+                r2 = model_ancova.rsquared
 
-            **Demência (coef. ± EP):**  
-            -0.0244 ± 0.004
-            """)
+                # Verificar qual é a referência do grupo
+                if 'C(group_type)[T.Nondemented]' in coef:
+                    # Se a referência é Demented
+                    dementia_coef = coef['C(group_type)[T.Nondemented]']
+                    dementia_se = se['C(group_type)[T.Nondemented]']
+                    coef_text = f"Nondemented (ref: Demented):\n{dementia_coef:.4f} ± {dementia_se:.4f}"
+                else:
+                    # Se a referência é Nondemented (caso contrário)
+                    dementia_coef = coef['C(group_type)[T.Demented]']
+                    dementia_se = se['C(group_type)[T.Demented]']
+                    coef_text = f"Demented (ref: Nondemented):\n{dementia_coef:.4f} ± {dementia_se:.4f}"
 
+                st.markdown("**Teste ANCOVA (Grupo + Idade)**")
+                st.markdown(f"""
+                            **Efeito do Grupo**  
+                            F: {anova_table['F']['C(group_type)']:.1f}  
+                            p: {anova_table['PR(>F)']['C(group_type)']:.4f}
+
+                            **Efeito da Idade**  
+                            F: {anova_table['F']['real_age']:.1f}  
+                            p: {anova_table['PR(>F)']['real_age']:.4f}
+                            """)
+
+                if anova_table['PR(>F)']['C(group_type)'] < 0.05:
+                    st.success("Diferença significativa entre grupos (p < 0.05)")
+                else:
+                    st.warning("Sem diferença significativa entre grupos")
+            except Exception as e:
+                st.error(f"Erro na análise estatística: {str(e)}")
+                st.text("Detalhes do modelo:")
+                st.text(model_ancova.summary() if 'model_ancova' in locals() else "Modelo não pôde ser criado")
+        with st.expander("**📊 Regressão Linear Múltipla**", expanded=True):
+            # ANCOVA (ANOVA com covariável de idade)
+            try:
+                # Garantir que o nome do grupo está consistente
+                df['group_type'] = df['group_type'].replace({'Demented/Converted': 'Demented'})
+
+                model_ancova = ols(f'{VAR} ~ C(group_type) + real_age', data=df).fit()
+                anova_table = sm.stats.anova_lm(model_ancova, typ=2)
+
+                # Coeficientes - agora usando os nomes corretos conforme saída do modelo
+                coef = model_ancova.params
+                se = model_ancova.bse
+                r2 = model_ancova.rsquared
+
+                # Verificar qual é a referência do grupo
+                if 'C(group_type)[T.Nondemented]' in coef:
+                    # Se a referência é Demented
+                    dementia_coef = coef['C(group_type)[T.Nondemented]']
+                    dementia_se = se['C(group_type)[T.Nondemented]']
+                    coef_text = f"Nondemented (ref: Demented):\n{dementia_coef:.4f} ± {dementia_se:.4f}"
+                else:
+                    # Se a referência é Nondemented (caso contrário)
+                    dementia_coef = coef['C(group_type)[T.Demented]']
+                    dementia_se = se['C(group_type)[T.Demented]']
+                    coef_text = f"Demented (ref: Nondemented):\n{dementia_coef:.4f} ± {dementia_se:.4f}"
+
+                st.markdown(f"""
+                **Modelo de Regressão**
+
+                **R² = {r2:.3f}**
+
+                **Intercepto:**  
+                {coef['Intercept']:.4f} ± {se['Intercept']:.4f}
+
+                **Nondemented (ref: Demented):**  
+                {coef['C(group_type)[T.Nondemented]']:.4f} ± {se['C(group_type)[T.Nondemented]']:.4f}
+
+                **Idade:**  
+                {coef['real_age']:.4f} ± {se['real_age']:.4f}
+                """)
+
+            except Exception as e:
+                st.error(f"Erro na análise estatística: {str(e)}")
+                st.text("Detalhes do modelo:")
+                st.text(model_ancova.summary() if 'model_ancova' in locals() else "Modelo não pôde ser criado")
 def metrics_section(df_cross, df_long):
     st.header("Métricas e Qualidade dos Dados")
 
