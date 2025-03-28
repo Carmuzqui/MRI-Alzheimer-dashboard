@@ -9,6 +9,9 @@ from sklearn.metrics import r2_score
 from streamlit_option_menu import option_menu
 import qrcode
 import io
+import statsmodels.api as sm
+from statsmodels.formula.api import ols
+
 
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
@@ -132,6 +135,18 @@ def demographic_info(df):
         st.metric("Percentual de mulheres", f"{percent_mulheres:.1f}%")
 
 
+def demographic_info_linha(df):
+    """Exibe informações demográficas básicas em formato vertical"""
+    media_idade = df['age'].mean()
+    desvio_padrao = df['age'].std()
+    percent_mulheres = (df['m_f'].value_counts(normalize=True)['F'] * 100)
+
+    # Container para organizar as métricas verticalmente
+    with st.container():
+        st.metric("Média de idade", f"{media_idade:.1f} anos")
+        st.metric("Desvio padrão idade", f"{desvio_padrao:.1f} anos")
+        st.metric("Percentual de mulheres", f"{percent_mulheres:.1f}%")
+
 def plot_age_distribution(df):
     """Cria gráfico de distribuição de idade em percentual, subdividido por gênero"""
     # Definir bins de 10 em 10 anos, começando do 0
@@ -170,7 +185,7 @@ def plot_age_distribution(df):
             y=male_values.values,
             name='Masculino',
             marker_color='#13ecc1',  # Azul mais intenso
-            hovertemplate='Faixa Etária: %{x}<br>Total: %{customdata:.1f}%<br>Masculino: %{text:.1f}%<extra></extra>',
+            hovertemplate='Faixa etária: %{x}<br>Total: %{customdata:.1f}%<br>Masculino: %{text:.1f}%<extra></extra>',
             text=gender_percentages['M'] * 100,
             customdata=total_distribution,
             textposition='none'  # Remove os valores das barras
@@ -184,7 +199,7 @@ def plot_age_distribution(df):
             y=female_values.values,
             name='Feminino',
             marker_color='#fa2eea',  # Rosa mais intenso
-            hovertemplate='Faixa Etária: %{x}<br>Total: %{customdata:.1f}%<br>Feminino: %{text:.1f}%<extra></extra>',
+            hovertemplate='Faixa etária: %{x}<br>Total: %{customdata:.1f}%<br>Feminino: %{text:.1f}%<extra></extra>',
             text=gender_percentages['F'] * 100,
             customdata=total_distribution,
             textposition='none'  # Remove os valores das barras
@@ -253,9 +268,9 @@ def plot_scatter_age_nwbv(df, threshold):
         ax.plot(df_above['age'], intercept_above + slope_above * df_above['age'],
                 color='red', linestyle='--', label=f'≥ {threshold} (R²={r2_above:.2f})')
 
-    ax.set_title(f'Idade vs Volume Cerebral (Threshold: {threshold})')
+    ax.set_title(f'Volume cerebral vs Idade (Limiar: {threshold})')
     ax.set_xlabel('Idade (anos)')
-    ax.set_ylabel('Volume Cerebral Normalizado')
+    ax.set_ylabel('Volume cerebral normalizado (nWBV)')
     ax.legend()
 
     # Adicionar informações de ajuste
@@ -275,8 +290,8 @@ def plot_scatter_age_nwbv(df, threshold):
     """
     remove_background(ax)
     st.pyplot(fig)
-    with st.expander("Estatísticas de Regressão"):
-        st.code(stats_text)
+    #with st.expander("Estatísticas de Regressão"):
+    #    st.code(stats_text)
 
 
 def plot_boxplot_cdr_mmse(df, threshold):
@@ -285,10 +300,12 @@ def plot_boxplot_cdr_mmse(df, threshold):
 
     fig, ax = plt.subplots(figsize=(8, 4))
     sns.boxplot(data=df, x='cdr', y='mmse', hue='age_group', ax=ax)
-    ax.set_title(f'CDR vs MMSE (Threshold: {threshold})')
-    ax.set_xlabel('Clinical Dementia Rating (CDR)')
-    ax.set_ylabel('Mini-Mental State Examination (MMSE)')
-    ax.legend(title='Faixa Etária',labelcolor= 'white')
+    ax.set_title(f'MMSE vs CDR (Limiar: {threshold})', fontsize=18)
+    ax.set_xlabel('Taxa de demência clínica (CDR)', fontsize=16)
+    ax.set_ylabel('Mini-Exame do estado mental (MMSE)', fontsize=16)
+    # ax.legend(title='Faixa etária',labelcolor= 'white')
+    legend = ax.legend(title='Faixa etária', labelcolor='white', title_fontsize='10')
+    legend.get_title().set_color('white')  # Define a cor do título da legenda como branco
     remove_background(ax)
     st.pyplot(fig)
 
@@ -300,10 +317,12 @@ def plot_violin_nwbv_cdr(df, threshold):
     fig, ax = plt.subplots(figsize=(8, 4))
     sns.violinplot(data=df, x='cdr', y='nwbv', hue='age_group',
                    split=True, inner="quart", ax=ax)
-    ax.set_title(f'Volume Cerebral vs CDR (Threshold: {threshold})')
-    ax.set_xlabel('Clinical Dementia Rating (CDR)')
-    ax.set_ylabel('Volume Cerebral Normalizado')
-    ax.legend(title='Faixa Etária')
+    ax.set_title(f'Volume cerebral vs CDR (Limiar: {threshold})', fontsize=18)
+    ax.set_xlabel('Taxa de demência clínica (CDR)', fontsize=16)
+    ax.set_ylabel('Volume cerebral normalizado (nWBV)', fontsize=16)
+    # ax.legend(title='Faixa etária')
+    legend = ax.legend(title='Faixa etária', labelcolor='white', title_fontsize='10')
+    legend.get_title().set_color('white')  # Define a cor do título da legenda como branco
     remove_background(ax)
     st.pyplot(fig)
 
@@ -315,9 +334,11 @@ def plot_scatter_mmse_age(df, threshold):
     fig, ax = plt.subplots(figsize=(8, 4))
     sns.scatterplot(data=df, x='age', y='mmse', hue='age_group',
                     alpha=0.7, ax=ax)
-    ax.set_title(f'MMSE vs Idade (Threshold: {threshold})')
+    ax.set_title(f'MMSE vs Idade (Limiar: {threshold})')
     ax.set_xlabel('Idade (anos)')
-    ax.set_ylabel('Mini-Mental State Examination (MMSE)')
+    ax.set_ylabel('Mini-Exame do estado mental (MMSE)')
+    legend = ax.legend(title='Faixa etária', labelcolor='white', title_fontsize='10')
+    legend.get_title().set_color('white')  # Define a cor do título da legenda como branco
     remove_background(ax)
     st.pyplot(fig)
 
@@ -329,10 +350,12 @@ def plot_violin_age_cdr(df, threshold):
     fig, ax = plt.subplots(figsize=(8, 4))
     sns.violinplot(data=df, x='cdr', y='age', hue='age_group',
                    split=True, inner="quart", ax=ax)
-    ax.set_title(f'Idade vs CDR (Threshold: {threshold})')
-    ax.set_xlabel('Clinical Dementia Rating (CDR)')
-    ax.set_ylabel('Idade (anos)')
-    ax.legend(title='Faixa Etária')
+    ax.set_title(f'Idade vs CDR (Limiar: {threshold})', fontsize=18)
+    ax.set_xlabel('Taxa de demência clínica (CDR)', fontsize=16)
+    ax.set_ylabel('Idade (anos)', fontsize=16)
+    # ax.legend(title='Faixa etária')
+    legend = ax.legend(title='Faixa etária', labelcolor='white', title_fontsize='10')
+    legend.get_title().set_color('white')  # Define a cor do título da legenda como branco
     remove_background(ax)
     st.pyplot(fig)
 
@@ -340,38 +363,67 @@ def plot_violin_age_cdr(df, threshold):
 # Interface principal ==========================================================
 
 def motivation_section(df):
-    st.header("Análise Transversal de Dados de Alzheimer")
-    st.write("""
-    Este dashboard explora dados de ressonância magnética (MRI) e marcadores 
-    clínicos de pacientes com Alzheimer em diferentes estágios e indivíduos 
-    saudáveis. A análise transversal permite comparar grupos em um único 
-    momento no tempo.
-    """)
+    # Título com caixa expansiva de texto informativo
+    col_title, col_expand = st.columns([0.7, 0.3])
+    with col_title:
+        st.header("Análise Transversal de Dados de Alzheimer")
+    with col_expand:
+        with st.expander("ℹ️ Informações"):
+            st.write("""
+            Este dashboard explora dados de ressonância magnética (MRI) e marcadores 
+            clínicos de pacientes com Alzheimer em diferentes estágios e indivíduos 
+            saudáveis. A análise transversal permite comparar grupos em um único 
+            momento no tempo.
+            """)
 
-    demographic_info(df)
+    # Seção superior com informações demográficas e gráfico de distribuição
+    col_stats, col_graph = st.columns([0.2, 0.8])  # Ajuste as proporções conforme necessário
 
-    # Gráfico de distribuição de idade (original - sem threshold)
-    plot_age_distribution(df)
+    with col_stats:
+        # Chamada modificada para demographic_info (você precisará adaptar essa função)
+        st.markdown("**Estatísticas demográficas**")
+        demographic_info_linha(df)  # Esta função precisa retornar os valores em formato vertical
 
-    # Slider para threshold (agora colocado APÓS o gráfico de distribuição)
-    min_age, max_age = int(df['age'].min()), int(df['age'].max())
-    threshold = st.slider("Selecione o threshold de idade para as análises abaixo:",
-                          min_value=min_age,
-                          max_value=max_age,
-                          value=55,
-                          key="motivation_threshold")
+    with col_graph:
+        # Gráfico de distribuição de idade com mais espaço
+        plot_age_distribution(df)
 
-    st.subheader("Marcadores (Análise por Threshold)")
-    col1, col2 = st.columns(2)
+    # Seção do limiar de idade com slider
+    st.markdown("---")
+    col_threshold_label, col_threshold_slider = st.columns([0.35, 0.65])
+    with col_threshold_label:
+        st.subheader("Análise por CDR")
+    with col_threshold_slider:
+        min_age, max_age = int(df['age'].min()), int(df['age'].max())
+        threshold = st.slider(
+            "Limiar",
+            min_value=min_age,
+            max_value=max_age,
+            value=55,
+            key="motivation_threshold"
+        )
+
+    # Três gráficos superiores lado a lado
+    col1, col2, col3 = st.columns(3)
 
     with col1:
-        plot_scatter_age_nwbv(df, threshold)
-        plot_boxplot_cdr_mmse(df, threshold)
-        plot_violin_nwbv_cdr(df, threshold)
+        plot_violin_age_cdr(df, threshold)
 
     with col2:
+        plot_violin_nwbv_cdr(df, threshold)
+
+    with col3:
+        plot_boxplot_cdr_mmse(df, threshold)
+
+    # Dois gráficos médios lado a lado
+    st.subheader("Análise por Idade")
+    col_mid1, col_mid2 = st.columns(2)
+
+    with col_mid1:
         plot_scatter_mmse_age(df, threshold)
-        plot_violin_age_cdr(df, threshold)
+
+    with col_mid2:
+        plot_scatter_age_nwbv(df, threshold)
 
 
 def longitudinal_section(df):
@@ -382,19 +434,20 @@ def longitudinal_section(df):
     indivíduos que converteram de não dementes para dementes durante o estudo.
     """)
 
-    # Informações demográficas
-    demographic_info(df)
+
 
     # Create columns for age distribution and correlation matrix
     col1, col2 = st.columns(2)
 
     with col1:
         # Gráfico de distribuição de idade
+        # Informações demográficas
+        demographic_info(df)
         plot_age_distribution(df)
 
     with col2:
         # Matriz de correlação (excluindo ASF) com novo gradiente
-        st.subheader("Matriz de Correlação")
+        st.subheader("Matriz de correlação")
         numeric_cols = df.select_dtypes(include=np.number).columns
         numeric_cols = numeric_cols.drop(['asf', 'visit', 'mr delay'], errors='ignore')  # Remove ASF
         corr = df[numeric_cols].corr()
@@ -426,8 +479,7 @@ def longitudinal_section(df):
         'Converted': '#3BA3EC',  # Cor 3
         'Demented': '#d88893'  # Cor 1
     }
-
-    # Evolução do Quadro
+####################################################################################
     st.subheader("Evolução do Quadro Clínico")
 
     # Configurações dos gráficos
@@ -437,13 +489,13 @@ def longitudinal_section(df):
               'Mini Exame do Estado Mental (MMSE)']
     ylabels = ['nWBV', 'CDR', 'MMSE']
 
-    # Criar colunas para gráficos e estatísticas
-    for i, (metric, title, ylabel) in enumerate(zip(metrics, titles, ylabels)):
-        col1, col2 = st.columns([3, 1])
+    # Criar 3 colunas para os gráficos
+    cols = st.columns(3)
 
-        with col1:
+    for i, (metric, title, ylabel) in enumerate(zip(metrics, titles, ylabels)):
+        with cols[i]:
             # Gráfico de evolução
-            fig, ax = plt.subplots(figsize=(10, 4))
+            fig, ax = plt.subplots(figsize=(8, 4))
 
             for group in ['Nondemented', 'Converted', 'Demented']:
                 group_data = df[df['Group_Type'] == group]
@@ -471,38 +523,240 @@ def longitudinal_section(df):
             remove_background(ax)
             st.pyplot(fig)
 
-        with col2:
-            # Testes estatísticos para a primeira visita
-            first_visit = df[df['visit'] == 1]
-            groups_data = [first_visit[first_visit['Group_Type'] == group][metric]
-                           for group in ['Nondemented', 'Converted', 'Demented']]
+            # Caixa expansiva para estatísticas
+            with st.expander(f"Estatísticas - {title}"):
+                # Testes estatísticos para a primeira visita
+                first_visit = df[df['visit'] == 1]
+                groups_data = [first_visit[first_visit['Group_Type'] == group][metric]
+                               for group in ['Nondemented', 'Converted', 'Demented']]
 
-            # Verificar normalidade
-            norm_results = [stats.shapiro(group)[1] for group in groups_data]
-            all_normal = all(p > 0.05 for p in norm_results)
+                # Verificar normalidade
+                norm_results = [stats.shapiro(group)[1] for group in groups_data]
+                all_normal = all(p > 0.05 for p in norm_results)
 
-            if all_normal:
-                # ANOVA
-                f_stat, p_value = stats.f_oneway(*groups_data)
-                test_type = "ANOVA"
-            else:
-                # Kruskal-Wallis
-                h_stat, p_value = stats.kruskal(*groups_data)
-                test_type = "Kruskal-Wallis"
+                if all_normal:
+                    # ANOVA
+                    f_stat, p_value = stats.f_oneway(*groups_data)
+                    test_type = "ANOVA"
+                else:
+                    # Kruskal-Wallis
+                    h_stat, p_value = stats.kruskal(*groups_data)
+                    test_type = "Kruskal-Wallis"
 
-            st.markdown(f"**Teste {test_type}**")
-            st.write(f"Estatística: {f_stat if all_normal else h_stat:.3f}")
-            st.write(f"Valor-p: {p_value:.4f}")
-            st.write("Diferença significativa" if p_value < 0.05 else "Sem diferença significativa")
+                st.markdown(f"**Teste {test_type}**")
+                st.write(f"Estatística: {f_stat if all_normal else h_stat:.3f}")
+                st.write(f"Valor-p: {p_value:.4f}")
 
-    # Estatísticas resumidas
-    with st.expander("Ver Estatísticas Detalhadas"):
-        st.subheader("Estatísticas Resumidas por Grupo e Visita")
-        for metric in metrics:
-            st.write(f"\n**Métrica: {metric.upper()}**")
-            stats_df = df.groupby(['Group_Type', 'visit'])[metric].agg(['mean', 'std', 'count'])
-            st.dataframe(stats_df.style.format("{:.3f}"))
+                if p_value < 0.05:
+                    st.success("Diferença significativa (p < 0.05)")
+                else:
+                    st.info("Sem diferença significativa")
+#################################################################################
+    st.subheader("Análise Longitudinal do Volume Cerebral")
 
+    # Verificar e padronizar os nomes dos grupos
+    #st.write("Grupos únicos encontrados:", df['Group_Type'].unique())
+
+    # Verificar se estamos usando os nomes corretos dos grupos
+    group_names = {
+        'Nondemented': ['Nondemented', 'NonDemented', 'Control'],
+        'Demented': ['Demented', 'Demented/Converted', 'Dementia']
+    }
+
+    # Padronizar nomes dos grupos
+    df['Group_Type'] = df['Group_Type'].str.strip()
+    for standardized, variants in group_names.items():
+        for variant in variants:
+            df.loc[df['Group_Type'].str.lower() == variant.lower(), 'Group_Type'] = standardized
+
+    # Definir variável de análise
+    VAR = 'nwbv'
+    if VAR not in df.columns:
+        st.error(f"Coluna '{VAR}' não encontrada no DataFrame")
+        return
+
+    # Criar coluna de tempo se não existir
+    if 'mr delay' in df.columns:
+        df['Years_Since_Baseline'] = df['mr delay'] / 365.25
+    else:
+        st.error("Coluna 'mr delay' não encontrada")
+        return
+
+    # Criar layout
+    VAR = 'nwbv'
+
+    # Processar dados
+    df = df.copy()
+    df['group_type'] = df['group'].replace({'Demented': 'Demented', 'Converted': 'Demented'})
+
+    # Calcular idade real (idade na primeira visita + anos desde baseline)
+    df['first_visit_age'] = df.groupby('subject id')['age'].transform('first')
+    df['years_since_baseline'] = df['mr delay'] / 365.25
+    df['real_age'] = df['first_visit_age'] + df['years_since_baseline']
+
+    col1, col2 = st.columns([6, 4])
+
+    with col1:
+        # Configurar estilo
+        sns.set_style("whitegrid")
+        colors = {
+            'Nondemented': '#b3933c',  # Amarelo/ouro
+            'Demented': '#d88893'  # Vermelho claro
+        }
+
+        # Criar figura
+        fig, ax = plt.subplots(figsize=(10, 6))
+
+        # Verificar quais grupos existem após padronização
+        existing_groups = [g for g in colors.keys() if g in df['group_type'].unique()]
+
+        if not existing_groups:
+            st.error("Nenhum grupo válido encontrado após padronização")
+            return
+
+        for group in existing_groups:
+            group_data = df[df['group_type'] == group]
+
+            if len(group_data) < 3:  # Mínimo de pontos para regressão
+                st.warning(f"Dados insuficientes para {group} (n={len(group_data)})")
+                continue
+
+            # Plotar pontos
+            sns.scatterplot(
+                x='real_age',
+                y=VAR,
+                data=group_data,
+                color=colors[group],
+                ax=ax,
+                alpha=0.6,
+                s=80,
+                label=f"{group} (n={len(group_data)})"
+            )
+
+            # Ajustar regressão
+            try:
+                X = sm.add_constant(group_data['real_age'])
+                y = group_data[VAR]
+                model = sm.OLS(y, X).fit()
+
+                # Gerar predições
+                x_pred = np.linspace(
+                    group_data['real_age'].min(),
+                    group_data['real_age'].max(),
+                    100
+                )
+                y_pred = model.predict(sm.add_constant(x_pred))
+                conf_int = model.get_prediction(sm.add_constant(x_pred)).conf_int()
+
+                # Plotar linha e intervalo
+                ax.plot(x_pred, y_pred, color=colors[group], linewidth=2.5)
+                ax.fill_between(
+                    x_pred, conf_int[:, 0], conf_int[:, 1],
+                    color=colors[group], alpha=0.15
+                )
+            except Exception as e:
+                st.warning(f"Erro na regressão para {group}: {str(e)}")
+
+        ax.set_title(f'Evolução do {VAR.upper()} por Idade', pad=20)
+        ax.set_ylabel(VAR.upper())
+        ax.set_xlabel('Idade (anos)')
+        ax.legend(title='Grupo Clínico', frameon=True)
+        ax.grid(False)
+        sns.despine()
+        remove_background(ax)
+        st.pyplot(fig)
+
+    with col2:
+        with st.expander("**📊 Resultados Estatísticos**", expanded=True):
+            # ANCOVA (ANOVA com covariável de idade)
+            try:
+                # Garantir que o nome do grupo está consistente
+                df['group_type'] = df['group_type'].replace({'Demented/Converted': 'Demented'})
+
+                model_ancova = ols(f'{VAR} ~ C(group_type) + real_age', data=df).fit()
+                anova_table = sm.stats.anova_lm(model_ancova, typ=2)
+
+                # Coeficientes - agora usando os nomes corretos conforme saída do modelo
+                coef = model_ancova.params
+                se = model_ancova.bse
+                r2 = model_ancova.rsquared
+
+                # Verificar qual é a referência do grupo
+                if 'C(group_type)[T.Nondemented]' in coef:
+                    # Se a referência é Demented
+                    dementia_coef = coef['C(group_type)[T.Nondemented]']
+                    dementia_se = se['C(group_type)[T.Nondemented]']
+                    coef_text = f"Nondemented (ref: Demented):\n{dementia_coef:.4f} ± {dementia_se:.4f}"
+                else:
+                    # Se a referência é Nondemented (caso contrário)
+                    dementia_coef = coef['C(group_type)[T.Demented]']
+                    dementia_se = se['C(group_type)[T.Demented]']
+                    coef_text = f"Demented (ref: Nondemented):\n{dementia_coef:.4f} ± {dementia_se:.4f}"
+
+                st.markdown("**Teste ANCOVA (Grupo + Idade)**")
+                st.markdown(f"""
+                            **Efeito do Grupo**  
+                            F: {anova_table['F']['C(group_type)']:.1f}  
+                            p: {anova_table['PR(>F)']['C(group_type)']:.4f}
+
+                            **Efeito da Idade**  
+                            F: {anova_table['F']['real_age']:.1f}  
+                            p: {anova_table['PR(>F)']['real_age']:.4f}
+                            """)
+
+                if anova_table['PR(>F)']['C(group_type)'] < 0.05:
+                    st.success("Diferença significativa entre grupos (p < 0.05)")
+                else:
+                    st.warning("Sem diferença significativa entre grupos")
+            except Exception as e:
+                st.error(f"Erro na análise estatística: {str(e)}")
+                st.text("Detalhes do modelo:")
+                st.text(model_ancova.summary() if 'model_ancova' in locals() else "Modelo não pôde ser criado")
+        with st.expander("**📊 Regressão Linear Múltipla**", expanded=True):
+            # ANCOVA (ANOVA com covariável de idade)
+            try:
+                # Garantir que o nome do grupo está consistente
+                df['group_type'] = df['group_type'].replace({'Demented/Converted': 'Demented'})
+
+                model_ancova = ols(f'{VAR} ~ C(group_type) + real_age', data=df).fit()
+                anova_table = sm.stats.anova_lm(model_ancova, typ=2)
+
+                # Coeficientes - agora usando os nomes corretos conforme saída do modelo
+                coef = model_ancova.params
+                se = model_ancova.bse
+                r2 = model_ancova.rsquared
+
+                # Verificar qual é a referência do grupo
+                if 'C(group_type)[T.Nondemented]' in coef:
+                    # Se a referência é Demented
+                    dementia_coef = coef['C(group_type)[T.Nondemented]']
+                    dementia_se = se['C(group_type)[T.Nondemented]']
+                    coef_text = f"Nondemented (ref: Demented):\n{dementia_coef:.4f} ± {dementia_se:.4f}"
+                else:
+                    # Se a referência é Nondemented (caso contrário)
+                    dementia_coef = coef['C(group_type)[T.Demented]']
+                    dementia_se = se['C(group_type)[T.Demented]']
+                    coef_text = f"Demented (ref: Nondemented):\n{dementia_coef:.4f} ± {dementia_se:.4f}"
+
+                st.markdown(f"""
+                **Modelo de Regressão**
+
+                **R² = {r2:.3f}**
+
+                **Intercepto:**  
+                {coef['Intercept']:.4f} ± {se['Intercept']:.4f}
+
+                **Nondemented (ref: Demented):**  
+                {coef['C(group_type)[T.Nondemented]']:.4f} ± {se['C(group_type)[T.Nondemented]']:.4f}
+
+                **Idade:**  
+                {coef['real_age']:.4f} ± {se['real_age']:.4f}
+                """)
+
+            except Exception as e:
+                st.error(f"Erro na análise estatística: {str(e)}")
+                st.text("Detalhes do modelo:")
+                st.text(model_ancova.summary() if 'model_ancova' in locals() else "Modelo não pôde ser criado")
 def metrics_section(df_cross, df_long):
     st.header("Métricas e Qualidade dos Dados")
 
@@ -510,15 +764,9 @@ def metrics_section(df_cross, df_long):
     st.subheader("1. Limpeza e Pré-processamento")
     st.markdown("""
     - **Exclusão de sujeitos com dados faltantes**: 
-      Removemos todos os registros onde valores essenciais como `Age`, `MMSE`, `CDR` ou `nWBV` estavam ausentes.
-      Essa abordagem garante que nossas análises sejam baseadas apenas em dados completos.
-    - **Padronização**: 
-      Todos os nomes de colunas foram padronizados para formato snake_case (ex: 'M/F' → 'm_f').
-    """)
-
-    # Métricas de limpeza em colunas
+      Removemos todos os registros onde valores essenciais como idade, volume cerebral, ídice de CDR e MMSE estavam ausentes.""")
+    # Dados iciciais e finais em cada um dos bancos de dados:
     col1, col2 = st.columns(2)
-
     with col1:
         st.markdown("**Dados Transversais**")
         st.metric("Registros originais", len(df_cross))
@@ -528,10 +776,8 @@ def metrics_section(df_cross, df_long):
         st.markdown("**Dados Longitudinais**")
         st.metric("Registros originais", len(df_long))
         st.metric("Registros após limpeza", len(df_long.dropna(subset=['age', 'mmse', 'cdr', 'nwbv'])))
-
     # Divisão visual
     st.markdown("---")
-
     # Seção 2: Explicação Estatística
     st.subheader("2. Testes Estatísticos")
 
@@ -559,61 +805,50 @@ def metrics_section(df_cross, df_long):
         st.latex(r'''
         F = \frac{\text{Variância entre grupos}}{\text{Variância dentro dos grupos}}
         ''')
+    st.markdown("""
+        ### Kruskal-Wallis
+        """)
+    with st.expander("🔍 Clique para expandir a explicação"):
+        st.markdown("""
+        **O que é?**  
+        O teste de Kruskal-Wallis é um teste estatístico não paramétrico que compara as distribuições de três ou mais grupos independentes.
+
+        **Quando usar?**  
+        - Quando os dados **não** seguem distribuição normal (teste de Shapiro-Wilk)  
+        - Quando há heterogeneidade de variâncias (teste de Levene)  
+        - Para dados ordinais ou quando há outliers que podem afetar a ANOVA  
+
+        **Interpretação:**  
+        - Valor-p < 0.05 → Pelo menos um grupo difere significativamente  
+        - Valor-p ≥ 0.05 → Nenhuma diferença significativa detectada  
+
+        **Fórmula básica:**  
+        """)
+        st.latex(r'''
+        H = \frac{12}{N(N+1)} \sum \frac{R_i^2}{n_i} - 3(N+1)
+        ''')
+    st.markdown("""
+            ### Regressão Linear Múltipla
+            """)
+    with st.expander("🔍 Clique para expandir a explicação"):
+        st.markdown("""
+        **O que foi feito?**  
+        Ajustamos um modelo de **Regressão Linear Múltipla** para analisar a relação entre o volume cerebral normalizado (**nWBV**) e dois fatores:
+        - O tempo desde a linha de base 
+        - A presença de demência
+
+        **Como foi feito?**  
+        - Os grupos **Demente** e **Convertido** foram unificados em um único grupo: **Demente/Convertido**  
+        - Criamos uma variável binária (**Dementia**) para indicar se um indivíduo pertence a esse grupo (1) ou não (0)  
+        - Ajustamos um modelo de regressão linear com:""")
+        st.latex(r'''
+            nWBV = \beta_0 + \beta_1 (\text{Years Since Baseline}) + \beta_2 (\text{Dementia}) + \varepsilon
+            ''')
 
         st.markdown("""
-        **Exemplo no nosso contexto:**  
-        Usamos ANOVA para comparar:  
-        - Volume cerebral (nWBV) entre grupos (Nondemented, Converted, Demented)  
-        - Escores MMSE entre diferentes estágios de CDR  
-        """)
+            - O modelo ajuda a entender o impacto do tempo e da demência na atrofia cerebral (redução de nWBV).  
+            """)
 
-    # Comparação com Kruskal-Wallis
-    st.markdown("""
-    ### ANOVA vs Kruskal-Wallis
-    """)
-
-    st.table(pd.DataFrame({
-        'Característica': ['Pressupostos', 'Tipo de dados', 'Robustez'],
-        'ANOVA': [
-            'Normalidade, homogeneidade de variâncias',
-            'Dados paramétricos',
-            'Sensível a outliers'
-        ],
-        'Kruskal-Wallis': [
-            'Nenhum pressuposto',
-            'Dados não-paramétricos/ordinais',
-            'Robusto a outliers'
-        ]
-    }))
-
-    # Divisão visual
-    st.markdown("---")
-
-    # Seção 3: Exemplo Prático
-    st.subheader("3. Aplicação no Nosso Dataset")
-
-    # Selecionar variável para demonstração
-    demo_var = st.selectbox(
-        "Selecione uma variável para demonstração estatística:",
-        options=['nwbv', 'mmse', 'age']
-    )
-
-    # Executar ANOVA
-    from scipy.stats import f_oneway
-    groups = [df_long[df_long['group'] == g][demo_var] for g in df_long['group'].unique()]
-
-    # Verificar normalidade
-    from scipy.stats import shapiro
-    normal = all(shapiro(group)[1] > 0.05 for group in groups)
-
-    if normal:
-        f_val, p_val = f_oneway(*groups)
-        st.success(f"✅ Dados normais (p > 0.05 no teste de Shapiro-Wilk)")
-        st.metric("Resultado ANOVA",
-                  f"F = {f_val:.2f}, p = {p_val:.4f}",
-                  help="Valor-p < 0.05 indica diferenças significativas")
-    else:
-        st.warning("⚠️ Dados não-normais - Use Kruskal-Wallis")
 def main():
     # Carrega os dados
     df_cross, df_long = load_data()
@@ -695,9 +930,6 @@ def main():
 
     elif selected == "Métricas":
         metrics_section(df_cross, df_long)
-        
-    
-        
 
 
 if __name__ == "__main__":
