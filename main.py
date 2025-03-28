@@ -951,7 +951,7 @@ def main():
             st.image(img_byte_arr, caption='Escaneie para acessar o dashboard')
             
 
-    elif selected == "Motivação":
+    elif selected == "Transversal":  #Motivação
         motivation_section(df_cross)
 
     elif selected == "Longitudinal":
