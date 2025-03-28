@@ -227,22 +227,6 @@ def plot_age_distribution(df):
     st.plotly_chart(plotly_fig, use_container_width=True)
 
 
-# def plot_age_distribution(df):
-#     """Cria gráfico de distribuição de idade em percentual"""
-#     fig, ax = plt.subplots(figsize=(8, 4))
-#     n, bins, patches = ax.hist(df['age'], bins=15, color='skyblue',
-#                                edgecolor='black',
-#                                weights=np.ones(len(df['age'])) / len(df['age']) * 100)
-
-#     ax.set_title('Distribuição de Idade dos Participantes (%)', fontsize=14)
-#     ax.set_xlabel('Idade (anos)', fontsize=12)
-#     ax.set_ylabel('Percentual de Participantes (%)', fontsize=12)
-#     ax.grid(axis='y', alpha=0.3)
-#     ax.set_ylim(0, 30)
-#     remove_background(ax)
-#     st.pyplot(fig)
-
-
 def plot_scatter_age_nwbv(df, threshold):
     """Scatter plot Idade x nWBV com threshold"""
     fig, ax = plt.subplots(figsize=(8, 4))
@@ -298,7 +282,7 @@ def plot_boxplot_cdr_mmse(df, threshold):
     """Boxplot CDR x MMSE com threshold"""
     df['age_group'] = np.where(df['age'] >= threshold, f'≥ {threshold}', f'< {threshold}')
 
-    fig, ax = plt.subplots(figsize=(8, 4))
+    fig, ax = plt.subplots(figsize=(8, 5))
     sns.boxplot(data=df, x='cdr', y='mmse', hue='age_group', ax=ax)
     ax.set_title(f'MMSE vs CDR (Limiar: {threshold})', fontsize=18)
     ax.set_xlabel('Taxa de demência clínica (CDR)', fontsize=16)
@@ -314,7 +298,7 @@ def plot_violin_nwbv_cdr(df, threshold):
     """Violin plot nWBV x CDR com threshold"""
     df['age_group'] = np.where(df['age'] >= threshold, f'≥ {threshold}', f'< {threshold}')
 
-    fig, ax = plt.subplots(figsize=(8, 4))
+    fig, ax = plt.subplots(figsize=(8, 5))
     sns.violinplot(data=df, x='cdr', y='nwbv', hue='age_group',
                    split=True, inner="quart", ax=ax)
     ax.set_title(f'Volume cerebral vs CDR (Limiar: {threshold})', fontsize=18)
@@ -347,7 +331,7 @@ def plot_violin_age_cdr(df, threshold):
     """Violin plot Idade x CDR com threshold"""
     df['age_group'] = np.where(df['age'] >= threshold, f'≥ {threshold}', f'< {threshold}')
 
-    fig, ax = plt.subplots(figsize=(8, 4))
+    fig, ax = plt.subplots(figsize=(8, 5))
     sns.violinplot(data=df, x='cdr', y='age', hue='age_group',
                    split=True, inner="quart", ax=ax)
     ax.set_title(f'Idade vs CDR (Limiar: {threshold})', fontsize=18)
@@ -402,6 +386,8 @@ def motivation_section(df):
             value=55,
             key="motivation_threshold"
         )
+        
+    
 
     # Três gráficos superiores lado a lado
     col1, col2, col3 = st.columns(3)
