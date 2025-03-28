@@ -193,7 +193,7 @@ def plot_age_distribution(df):
 
     # Configurar o layout
     plotly_fig.update_layout(
-        title='Distribuição de Idade dos Participantes por Gênero (%)',
+        title='Distribuição de idade dos participantes por gênero (%)',
         xaxis_title='Faixa etária (anos)',
         yaxis_title='Percentual de participantes (%)',
         barmode='stack',
