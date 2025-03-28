@@ -216,9 +216,9 @@ def plot_age_distribution(df):
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)',
         font=dict(color='white'),
-        title_font=dict(size=14),
-        xaxis_title_font=dict(size=12),
-        yaxis_title_font=dict(size=12),
+        title_font=dict(size=20),
+        xaxis_title_font=dict(size=16),
+        yaxis_title_font=dict(size=16),
     )
 
     plotly_fig.update_xaxes(gridcolor='rgba(255,255,255,0.1)', categoryorder='array', categoryarray=labels)
@@ -350,7 +350,7 @@ def motivation_section(df):
     # Título com caixa expansiva de texto informativo
     col_title, col_expand = st.columns([0.7, 0.3])
     with col_title:
-        st.header("Análise Transversal de Dados de Alzheimer")
+        st.header("Análise transversal de dados de Alzheimer")
     with col_expand:
         with st.expander("ℹ️ Informações"):
             st.write("""
@@ -400,16 +400,59 @@ def motivation_section(df):
 
     with col3:
         plot_boxplot_cdr_mmse(df, threshold)
+        
+        
+        
+    
 
     # Dois gráficos médios lado a lado
-    st.subheader("Análise por Idade")
-    col_mid1, col_mid2 = st.columns(2)
+    st.subheader("Análise por idade")
 
-    with col_mid1:
-        plot_scatter_mmse_age(df, threshold)
+    # Remova os valores NaN da coluna 'cdr'
+    df_cdr = df.dropna(subset=['cdr'])
 
-    with col_mid2:
-        plot_scatter_age_nwbv(df, threshold)
+    # Obtenha os valores únicos de CDR do DataFrame, excluindo NaN
+    cdr_options = sorted(df_cdr['cdr'].unique())
+
+    # CSS personalizado para juntar as caixas de verificação
+    st.markdown("""
+    <style>
+        div.row-widget.stRadio > div{flex-direction:row;}
+        div.row-widget.stRadio > div > label{margin-right: 5px; padding-right: 5px;}
+    </style>
+    """, unsafe_allow_html=True)
+
+    # Crie um container para as caixas de seleção
+    st.write("Selecione os valores de CDR para filtrar:")
+
+    # Crie as caixas de seleção horizontalmente com menos espaço entre elas
+    cols = st.columns(len(cdr_options) + 1)  # +1 para dar um pouco de espaço extra no final
+    selected_cdrs = {}
+    for idx, cdr in enumerate(cdr_options):
+        with cols[idx]:
+            selected_cdrs[cdr] = st.checkbox(f"CDR {cdr}", value=True, key=f"cdr_{cdr}")
+
+    # Filtrar o DataFrame baseado nas seleções
+    filtered_df = df[df['cdr'].isin([cdr for cdr, selected in selected_cdrs.items() if selected])]
+
+    # Verifique se algum CDR foi selecionado
+    if filtered_df.empty:
+        st.warning("Por favor, selecione pelo menos um valor de CDR para visualizar os gráficos.")
+    else:
+        # Dois gráficos médios lado a lado
+        col_mid1, col_mid2 = st.columns(2)
+
+        with col_mid1:
+            plot_scatter_mmse_age(filtered_df, threshold)
+
+        with col_mid2:
+            plot_scatter_age_nwbv(filtered_df, threshold)
+            
+        
+        
+        
+        
+        
 
 
 def longitudinal_section(df):
