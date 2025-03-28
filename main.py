@@ -888,8 +888,8 @@ def main():
         # Menu de opções
         selected = option_menu(
             menu_title=None,
-            options=["Início", "Motivação", "Longitudinal", "Métricas"],
-            icons=["house", "lightbulb", "graph-up", "clipboard-data"],
+            options=["Início", "Transversal", "Longitudinal", "Métricas"], #Motivação
+            icons=["house", "layers", "graph-up", "clipboard-data"],     #lightbulb
             menu_icon="cast",
             default_index=0,
             orientation="vertical",  # Mudado para vertical
