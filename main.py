@@ -283,7 +283,12 @@ def plot_boxplot_cdr_mmse(df, threshold):
     df['age_group'] = np.where(df['age'] >= threshold, f'≥ {threshold}', f'< {threshold}')
 
     fig, ax = plt.subplots(figsize=(8, 5))
-    sns.boxplot(data=df, x='cdr', y='mmse', hue='age_group', ax=ax)
+    # sns.boxplot(data=df, x='cdr', y='mmse', hue='age_group', ax=ax)
+    sns.boxplot(data=df, x='cdr', y='mmse', hue='age_group', ax=ax,
+                flierprops={'markerfacecolor': 'white', 'markeredgecolor': 'white'},
+                whiskerprops={'color': 'white'},
+                medianprops={'color': 'white'},
+                capprops={'color': 'white'})
     ax.set_title(f'MMSE vs CDR (Limiar: {threshold})', fontsize=18)
     ax.set_xlabel('Taxa de demência clínica (CDR)', fontsize=16)
     ax.set_ylabel('Mini-Exame do estado mental (MMSE)', fontsize=16)
