@@ -242,7 +242,7 @@ def plot_scatter_age_nwbv(df, threshold):
     slope_all, intercept_all, _, _, _ = linregress(df['age'], df['nwbv'])
     r2_all = r2_score(df['nwbv'], intercept_all + slope_all * df['age'])
     ax.plot(df['age'], intercept_all + slope_all * df['age'],
-            color='black', linestyle='--', label=f'Todos (R²={r2_all:.2f})')
+            color='yellow', linestyle='--', label=f'Todos (R²={r2_all:.2f})')
 
     # Ajuste de regressão apenas para idade >= threshold
     df_above = df[df['age'] >= threshold]
