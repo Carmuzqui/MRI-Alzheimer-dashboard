@@ -9,7 +9,7 @@ def load_data():
     return cross, long
 #Limpeza...
 def limpar_dados_cross_sectional(df):
-    df = df.drop(columns=['Hand', 'ASF', 'eTIV'], errors='ignore')
+    df = df.drop(columns=['Hand', 'ASF', 'eTIV', 'Delay'], errors='ignore')
     # Adicionar coluna "Gender" como 1 para masculino, 0 para feminino
     df['Gender'] = (df['M/F'] == 'M').astype(int)
     df1 = df.dropna(subset = ['Educ','SES',	'MMSE','CDR'])
@@ -28,14 +28,14 @@ def limpar_dados_longitudinais(df):
     # Remover colunas irrelevantes
     cols_to_drop = ['Hand', 'ASF', 'eTIV']
     df_clean.drop(columns=cols_to_drop, errors='ignore', inplace=True)
-
+    df_clean = df_clean.rename(columns={"EDUC":"Educ"})
     # Preencher valores faltantes
     cat_cols = ['M/F', 'Group']
     for col in cat_cols:
         if col in df_clean.columns:
             df_clean[col] = df_clean[col].fillna(df_clean[col].mode()[0])
 
-    num_cols = ['Age', 'EDUC', 'SES', 'MMSE', 'CDR', 'nWBV', 'MR Delay']
+    num_cols = ['Age', 'Educ', 'SES', 'MMSE', 'CDR', 'nWBV', 'MR Delay']
     for col in num_cols:
         if col in df_clean.columns:
             df_clean[col] = df_clean[col].fillna(df_clean[col].median())
@@ -151,11 +151,8 @@ def exibir_menu_dados(cross_original, cross_clean, long_original, long_clean, lo
         - Criação da variável binária Gender   
         - Remoção de colunas: Hand, ASF, eTIV, M/F  
         - Preenchimento de dados categóricos com moda  
-        - Preenchimento de dados numéricos com mediana  
-        - **Padronização:**
-        - Subject ID como string  
-        - Ordenação por paciente e visita  
-        - **Mantido:** Todas as visitas para análise longitudinal  
+        - Preenchimento de dados numéricos com mediana   
+        - Mantido todas as visitas para análise longitudinal  
         """)
 
 def exibir_menu_dados1(cross_original, cross_clean, long_original, long_clean):
@@ -187,6 +184,23 @@ def exibir_menu_dados1(cross_original, cross_clean, long_original, long_clean):
         - Preenchimento de dados categóricos com moda  
         - Preenchimento de dados numéricos com mediana
         """)
+def plotar_heatmap_clusterizacao_unico(df, cluster_col, group_col='Group'):
+    """
+    Plota um único heatmap com a distribuição percentual de cada grupo em cada cluster.
+
+    Parâmetros:
+    - df: DataFrame com colunas de clusterização e grupo.
+    - cluster_col: nome da coluna com a clusterização.
+    - group_col: nome da coluna de grupo (padrão: 'Group').
+    """
+    cluster_dist = pd.crosstab(df[cluster_col], df[group_col], normalize='columns') * 100
+
+    fig, ax = plt.subplots(figsize=(6, 4), constrained_layout=True)
+    sns.heatmap(cluster_dist, annot=True, fmt='.1f', cmap='Blues', vmin=0, vmax=100, ax=ax)
+    ax.set_title('Distribuição percentual grupo/cluster')
+    ax.set_xlabel('Grupo')
+    ax.set_ylabel('Cluster')
+    st.pyplot(fig)
 
 def inspecao(cross_clean, long_clean):
     st.subheader("Inspeção de Clusters nos Dados")
@@ -215,13 +229,14 @@ def inspecao(cross_clean, long_clean):
         ylim = (df_pca_total['PC2'].min(), df_pca_total['PC2'].max())
 
         with col_cross:
-            fig1, ax1 = plt.subplots(figsize=(6, 4))
+            # fig1, ax1 = plt.subplots(figsize=(6, 4))
+            fig1, ax1 = plt.subplots(figsize=(6, 4), constrained_layout=True)
+
             sns.scatterplot(data=df_pca_cross, x="PC1", y="PC2", hue="Cluster", palette="tab10", ax=ax1)
-            ax1.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+            ax1.legend(title='Cluster', bbox_to_anchor=(1.05, 1), loc='upper left')
             ax1.set_xlim(xlim)
             ax1.set_ylim (ylim)
-
-            ax1.set_title(f'PCA Cross: Var. Explicada PC1: {var_exp_cross[0]:.2%}, PC2: {var_exp_cross[1]:.2%}')
+            ax1.set_title(f'PCA - Não Classificado: Var. Explicada PC1: {var_exp_cross[0]:.2%}, PC2: {var_exp_cross[1]:.2%}')
             st.pyplot(fig1)
 
             with st.expander("Estatísticas Cross-Sectional"):
@@ -229,22 +244,32 @@ def inspecao(cross_clean, long_clean):
                 st.dataframe(stats_cross)
         
         with col_long:
-            fig2, ax2 = plt.subplots(figsize=(6, 4))
-            sns.scatterplot(data=df_pca_long, x="PC1", y="PC2", hue="Cluster", style="Group", palette="tab10", ax=ax2)
+            # Mapeia nomes longos para siglas
+            df_pca_long["Grupo"] = df_pca_long["Group"].map({
+                "Nondemented": "N",
+                "Demented": "D",
+                "Converted": "C"
+                })
+            df_pca_long["GrupoP"] = df_pca_long["Group"].map({
+                "Nondemented": "Não Demente",
+                "Demented": "Demente",
+                "Converted": "Convertido"
+                })
+            # fig2, ax2 = plt.subplots(figsize=(6, 4))
+            fig2, ax2 = plt.subplots(figsize=(6, 4), constrained_layout=True)
+            sns.scatterplot(data=df_pca_long, x="PC1", y="PC2", hue="Cluster", style="Grupo", palette="tab10", ax=ax2)
             ax2.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-            ax2.set_title(f'PCA Longitudinal: Var. Explicada PC1: {var_exp_long[0]:.2%}, PC2: {var_exp_long[1]:.2%}')
+            ax2.set_title(f'PCA - Classificado: Var. Explicada PC1: {var_exp_long[0]:.2%}, PC2: {var_exp_long[1]:.2%}')
             ax2.set_xlim(xlim)
             ax2.set_ylim (ylim)
             st.pyplot(fig2)
 
-            with st.expander("Estatísticas Longitudinais"):
-                stats_long = df_pca_long.groupby("Cluster")[["PC1", "PC2"]].describe()
-                st.dataframe(stats_long)
-
-                if "Group" in df_pca_long.columns:
-                    st.markdown("**Por Grupo:**")
-                    stats_group = df_pca_long.groupby("Group")[["PC1", "PC2"]].describe()
-                    st.dataframe(stats_group)
+            with st.expander("Distribuição por Grupo (Heatmap)"):
+                col_name = "Cluster"
+                if col_name in df_pca_long.columns:
+                    plotar_heatmap_clusterizacao_unico(df_pca_long, cluster_col=col_name, group_col='GrupoP')
+                else:
+                    st.warning(f"Coluna de cluster '{col_name}' não encontrada nos dados.")
 
     else:
         with col_cross:
@@ -269,7 +294,9 @@ def inspecao1(cross_clean, long_clean):
             df_usado = cross_clean
             tem_classificacao = False
 
-        variaveis_disponiveis = [col for col in df_usado.columns if df_usado[col].dtype != 'object' and col not in ['MRI ID', 'Subject ID', 'ID']]
+        # variaveis_disponiveis = [col for col in df_usado.columns if df_usado[col].dtype != 'object' and col not in ['MRI ID', 'Subject ID', 'ID', 'Delay', 'MR Delay']]
+        variaveis_disponiveis = ['Age', 'MMSE', 'CDR', 'nWBV', 'Educ', 'SES']
+
         variaveis_default = [v for v in ['Age', 'MMSE', 'CDR', 'nWBV'] if v in variaveis_disponiveis]
 
         variaveis_selecionadas = st.multiselect("Variáveis para análise", variaveis_disponiveis, default=variaveis_default)
@@ -354,6 +381,8 @@ def menu_simulacao(df):
     st.dataframe(resultados.style.format({'Volume Cerebral Estimado (nWBV)': '{:.4f}'}))
     st.line_chart(resultados.set_index('Ano')['Volume Cerebral Estimado (nWBV)'])
 
+def menu_inicio():
+    pass
 def main():
     st.set_page_config(layout="wide")  # Layout mais largo para melhor visualização
     # CSS para reduzir o espaço superior do título
@@ -378,8 +407,8 @@ def main():
     # Segunda linha: Menu interativo de abas
     aba = option_menu(
         menu_title=None,
-        options=["Inspeção", "Simulação", "Dados"],
-        icons=["search", "cpu", "database"],
+        options=["Início","Inspeção", "Simulação", "Dados"],
+        icons=["cpu","search", "cpu", "database"],
         default_index=0,
         orientation="horizontal",
         styles={
@@ -397,9 +426,13 @@ def main():
     )
 
     # Conteúdo principal baseado na aba selecionada
-    if aba == "Inspeção":
-        st.subheader("Análise Exploratória e Visualização de Dados")
+    if aba == "Início":
+        st.subheader("Introdução")
         # Conteúdo será adicionado futuramente
+        menu_inicio()
+    elif aba == "Inspeção":
+        st.subheader("Análise Exploratória e Visualização de Dados")
+        
         inspecao(cross_clean, long_clean)
 
     elif aba == "Simulação":
