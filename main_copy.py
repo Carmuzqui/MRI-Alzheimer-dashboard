@@ -1,7 +1,22 @@
 import streamlit as st
 from streamlit_option_menu import option_menu
 import pandas as pd
-import streamlit as st
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+import joblib
+import os
+
+from sklearn.decomposition import PCA
+from sklearn.cluster import (
+    SpectralClustering, 
+    AgglomerativeClustering, 
+    KMeans, 
+    DBSCAN
+)
+from sklearn.mixture import BayesianGaussianMixture
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LinearRegression
 
 def load_data():
     cross = pd.read_csv("data/oasis_cross-sectional.csv")
@@ -70,18 +85,12 @@ def limpar_dados_longitudinais_simulacao(df):
     
     return df
 
-from sklearn.decomposition import PCA
-from sklearn.cluster import SpectralClustering, AgglomerativeClustering
-import seaborn as sns
-import matplotlib.pyplot as plt
-from sklearn.preprocessing import StandardScaler
-
 def rodar_clusterizacao(df, variaveis, algoritmo, n_clusters, tem_classificacao):
     df = df.copy()
 
     # Inclui a coluna 'Group' se ela existir e for necessária
     colunas_usadas = variaveis + (['Group'] if tem_classificacao and 'Group' in df.columns else [])
-    
+
     # Remove entradas com NaN
     df = df[colunas_usadas].dropna()
 
@@ -91,16 +100,25 @@ def rodar_clusterizacao(df, variaveis, algoritmo, n_clusters, tem_classificacao)
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
 
-    # Clusterização
+    # Clusterização com controle de aleatoriedade
     if algoritmo == 'Spectral':
         cluster = SpectralClustering(n_clusters=n_clusters, assign_labels='kmeans', random_state=42)
-    else:
+    elif algoritmo == 'Agglomerative':
         cluster = AgglomerativeClustering(n_clusters=n_clusters)
+    elif algoritmo == 'KMeans':
+        cluster = KMeans(n_clusters=n_clusters, random_state=42)
+    elif algoritmo == 'DBSCAN':
+        cluster = DBSCAN(eps=0.5, min_samples=5)  # determinístico, sem seed
+    elif algoritmo == 'BayesianGaussian':
+        cluster = BayesianGaussianMixture(n_components=n_clusters, random_state=42)
+    else:
+        raise ValueError(f"Algoritmo de clusterização '{algoritmo}' não reconhecido.")
 
+    # Aplicação do algoritmo
     labels = cluster.fit_predict(X_scaled)
 
-    # PCA
-    pca = PCA(n_components=2)
+    # PCA para visualização
+    pca = PCA(n_components=2, random_state=42)
     componentes = pca.fit_transform(X_scaled)
 
     df_pca = pd.DataFrame(componentes, columns=['PC1', 'PC2'])
@@ -113,6 +131,7 @@ def rodar_clusterizacao(df, variaveis, algoritmo, n_clusters, tem_classificacao)
     variancia_explicada = pca.explained_variance_ratio_
 
     return df_pca, variancia_explicada
+
 def exibir_menu_dados(cross_original, cross_clean, long_original, long_clean, long_clean_sim):
     st.subheader("Relatório de Limpeza de Dados")
 
@@ -155,35 +174,6 @@ def exibir_menu_dados(cross_original, cross_clean, long_original, long_clean, lo
         - Mantido todas as visitas para análise longitudinal  
         """)
 
-def exibir_menu_dados1(cross_original, cross_clean, long_original, long_clean):
-    st.subheader("Relatório de Limpeza de Dados")
-    
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.markdown("### Dados Cross-Sectional (Sem Classificação)")
-        st.write(f"**Antes da Limpeza:** {cross_original.shape[0]} registros")
-        st.write(f"**Após a Limpeza:** {cross_clean.shape[0]} registros")
-        st.markdown("**Pipeline:**")
-        st.markdown("""
-        - Remoção de colunas: `Hand`, `ASF`, `eTIV`  
-        - Remoção de registros com `nWBV` faltante  
-        - Preenchimento de dados categóricos com moda  
-        - Preenchimento de dados numéricos com mediana
-        """)
-
-    with col2:
-        st.markdown("### Dados Longitudinais (Com Classificação)")
-        st.write(f"**Antes da Limpeza:** {long_original.shape[0]} registros")
-        st.write(f"**Após a Limpeza:** {long_clean.shape[0]} registros")
-        st.markdown("**Pipeline:**")
-        st.markdown("""
-        - Seleção apenas da 1ª visita  
-        - Criação da variável binária `Gender`  
-        - Remoção de colunas: `Hand`, `ASF`, `eTIV`  
-        - Preenchimento de dados categóricos com moda  
-        - Preenchimento de dados numéricos com mediana
-        """)
 def plotar_heatmap_clusterizacao_unico(df, cluster_col, group_col='Group'):
     """
     Plota um único heatmap com a distribuição percentual de cada grupo em cada cluster.
@@ -202,7 +192,7 @@ def plotar_heatmap_clusterizacao_unico(df, cluster_col, group_col='Group'):
     ax.set_ylabel('Cluster')
     st.pyplot(fig)
 
-def inspecao(cross_clean, long_clean):
+def menu_inspecao(cross_clean, long_clean):
     st.subheader("Inspeção de Clusters nos Dados")
 
     col_config, col_cross, col_long = st.columns([1, 3, 3])
@@ -215,7 +205,7 @@ def inspecao(cross_clean, long_clean):
 
         variaveis_selecionadas = st.multiselect("Variáveis para análise", variaveis_disponiveis, default=variaveis_default)
 
-        algoritmo = st.selectbox("Algoritmo de Clusterização", ["Spectral", "Agglomerative"])
+        algoritmo = st.selectbox("Algoritmo de Clusterização", ["BayesianGaussian", "Spectral", "Agglomerative", "KMeans", "DBSCAN"])
 
         n_clusters = st.number_input("Número de Clusters", min_value=2, max_value=10, value=3, step=1)
 
@@ -277,117 +267,8 @@ def inspecao(cross_clean, long_clean):
         with col_long:
             st.info("Selecione pelo menos duas variáveis para continuar.")
 
-def inspecao1(cross_clean, long_clean):
-    st.subheader("Inspeção de Clusters nos Dados")
-
-    col1, col2, col3 = st.columns([1, 3, 2])
-
-    with col1:
-        st.markdown("### Configuração")
-
-        tipo_dado = st.radio("Base de dados", options=["Classificados", "Sem classificação"], index=0)
-
-        if tipo_dado == "Classificados":
-            df_usado = long_clean
-            tem_classificacao = True
-        else:
-            df_usado = cross_clean
-            tem_classificacao = False
-
-        # variaveis_disponiveis = [col for col in df_usado.columns if df_usado[col].dtype != 'object' and col not in ['MRI ID', 'Subject ID', 'ID', 'Delay', 'MR Delay']]
-        variaveis_disponiveis = ['Age', 'MMSE', 'CDR', 'nWBV', 'Educ', 'SES']
-
-        variaveis_default = [v for v in ['Age', 'MMSE', 'CDR', 'nWBV'] if v in variaveis_disponiveis]
-
-        variaveis_selecionadas = st.multiselect("Variáveis para análise", variaveis_disponiveis, default=variaveis_default)
-
-        algoritmo = st.selectbox("Algoritmo de Clusterização", ["Spectral", "Agglomerative"])
-
-        n_clusters = st.number_input("Número de Clusters", min_value=2, max_value=10, value=3, step=1)
-
-    with col2:
-        if len(variaveis_selecionadas) >= 2:
-            df_pca, var_exp = rodar_clusterizacao(df_usado, variaveis_selecionadas, algoritmo, n_clusters, tem_classificacao)
-
-            fig, ax = plt.subplots(figsize=(6, 4))
-            if tem_classificacao and "Group" in df_pca.columns:
-                sns.scatterplot(
-                    data=df_pca, x="PC1", y="PC2",
-                    hue="Cluster", style="Group", palette="tab10", ax=ax
-                )
-                ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-            else:
-                sns.scatterplot(
-                    data=df_pca, x="PC1", y="PC2",
-                    hue="Cluster", palette="tab10", ax=ax
-                )
-                ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-
-            ax.set_title(f'PCA: Variância Explicada PC1: {var_exp[0]:.2%}, PC2: {var_exp[1]:.2%}')
-            st.pyplot(fig)
-        else:
-            st.info("Selecione pelo menos duas variáveis para continuar.")
-
-    with col3:
-        with st.expander("Estatísticas para Cluster"):
-            if 'Cluster' in df_pca:
-                stats_cluster = df_pca.groupby("Cluster")[["PC1", "PC2"]].describe()
-                st.dataframe(stats_cluster)
-
-        if tem_classificacao and "Group" in df_pca.columns:
-            with st.expander("Estatísticas para Grupo"):
-                stats_group = df_pca.groupby("Group")[["PC1", "PC2"]].describe()
-                st.dataframe(stats_group)
-
-
-import streamlit as st
-import pandas as pd
-import numpy as np
-from sklearn.linear_model import LinearRegression
-from sklearn.preprocessing import StandardScaler
-
 @st.cache_data
-def treinar_modelo_volume(df):
-    df = df.dropna(subset=['Age', 'nWBV'])
-    X = df[['Age']]
-    y = df['nWBV']
-    modelo = LinearRegression().fit(X, y)
-    return modelo
 
-def menu_simulacao1(df):
-    st.header("Simulação: Projeção do Volume Cerebral ao Longo do Tempo")
-
-    st.markdown("""
-    Esta simulação permite estimar o volume cerebral (nWBV) de um indivíduo ao longo dos próximos anos, com base em sua idade atual.
-    O modelo é treinado com dados reais para prever a taxa de declínio associada ao envelhecimento.
-    """)
-
-    modelo = treinar_modelo_volume(df)
-
-    idade_atual = st.number_input("Idade atual", min_value=60, max_value=100, value=70)
-    anos_futuros = st.slider("Projeção para quantos anos?", min_value=1, max_value=10, value=5)
-
-    # Gerar projeções
-    idades_futuras = np.arange(idade_atual, idade_atual + anos_futuros + 1)
-    volumes_previstos = modelo.predict(idades_futuras.reshape(-1, 1))
-
-    resultados = pd.DataFrame({
-        'Ano': np.arange(2025, 2025 + anos_futuros + 1),
-        'Idade': idades_futuras,
-        'Volume Cerebral Estimado (nWBV)': volumes_previstos
-    })
-
-    st.subheader("Projeção do Volume Cerebral")
-    st.dataframe(resultados.style.format({'Volume Cerebral Estimado (nWBV)': '{:.4f}'}))
-    st.line_chart(resultados.set_index('Ano')['Volume Cerebral Estimado (nWBV)'])
-import streamlit as st
-import pandas as pd
-import numpy as np
-import joblib
-from sklearn.linear_model import LinearRegression
-import os
-
-# ========== FUNÇÃO PARA PREPARAR E TREINAR O MODELO ========== #
 def treinar_ou_carregar_modelo(df, caminho_modelo='modelo_nwbv.pkl'):
     df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")
 
@@ -429,8 +310,6 @@ def treinar_ou_carregar_modelo(df, caminho_modelo='modelo_nwbv.pkl'):
 
     return modelo
 
-
-# ========== FUNÇÃO PARA O MENU DE SIMULAÇÃO ========== #
 def menu_simulacao(df):
     st.header("🔮 Simulação de Volume Cerebral Futuro (nWBV)")
     
@@ -510,18 +389,12 @@ def main():
         # Conteúdo será adicionado futuramente
         menu_inicio()
     elif aba == "Inspeção":
-        st.subheader("Análise Exploratória e Visualização de Dados")
-        
-        inspecao(cross_clean, long_clean)
+        menu_inspecao(cross_clean, long_clean)
 
     elif aba == "Simulação":
-        st.subheader("Simulação de Modelos ou Processos")
-        # Conteúdo será adicionado futuramente
         menu_simulacao(df_long)
 
     elif aba == "Dados":
-        st.subheader("Dados Brutos e Processados")
-        # Conteúdo será adicionado futuramente
         exibir_menu_dados(cross_original, cross_clean, long_original, long_clean, long_clean_sim)
 
 if __name__ == "__main__":
