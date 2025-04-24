@@ -354,7 +354,7 @@ def treinar_modelo_volume(df):
     modelo = LinearRegression().fit(X, y)
     return modelo
 
-def menu_simulacao(df):
+def menu_simulacao1(df):
     st.header("Simulação: Projeção do Volume Cerebral ao Longo do Tempo")
 
     st.markdown("""
@@ -380,6 +380,85 @@ def menu_simulacao(df):
     st.subheader("Projeção do Volume Cerebral")
     st.dataframe(resultados.style.format({'Volume Cerebral Estimado (nWBV)': '{:.4f}'}))
     st.line_chart(resultados.set_index('Ano')['Volume Cerebral Estimado (nWBV)'])
+import streamlit as st
+import pandas as pd
+import numpy as np
+import joblib
+from sklearn.linear_model import LinearRegression
+import os
+
+# ========== FUNÇÃO PARA PREPARAR E TREINAR O MODELO ========== #
+def treinar_ou_carregar_modelo(df, caminho_modelo='modelo_nwbv.pkl'):
+    df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")
+
+    # Selecionar colunas e eliminar NaNs
+    df = df[['subject_id', 'visit', 'age', 'mmse', 'cdr', 'nwbv']].dropna()
+    df['cdr'] = pd.to_numeric(df['cdr'], errors='coerce')
+
+    # Filtrar indivíduos com pelo menos 3 visitas
+    valid_subjects = df['subject_id'].value_counts()[lambda x: x >= 3].index
+    df = df[df['subject_id'].isin(valid_subjects)]
+
+    # Ordenar por tempo
+    df = df.sort_values(by=['subject_id', 'age'])
+
+    # Calcular diferenças
+    df['delta_nwbv'] = df.groupby('subject_id')['nwbv'].diff()
+    df['delta_tempo'] = df.groupby('subject_id')['age'].diff()
+
+    # Remover tempo zero ou negativo
+    df = df[df['delta_tempo'] > 0]
+
+    # Calcular variação anual
+    df['delta_nwbv_ano'] = df['delta_nwbv'] / df['delta_tempo']
+    df['nwbv_futuro'] = df['nwbv'] + df['delta_nwbv_ano']
+
+    # Limpeza final
+    df = df.replace([np.inf, -np.inf], np.nan)
+    df_model = df[['mmse', 'cdr', 'age', 'nwbv', 'nwbv_futuro']].dropna()
+
+    # Se o modelo já existir, carrega
+    if os.path.exists(caminho_modelo):
+        modelo = joblib.load(caminho_modelo)
+    else:
+        # Treina e salva
+        X = df_model[['mmse', 'cdr', 'age', 'nwbv']]
+        y = df_model['nwbv_futuro']
+        modelo = LinearRegression().fit(X, y)
+        joblib.dump(modelo, caminho_modelo)
+
+    return modelo
+
+
+# ========== FUNÇÃO PARA O MENU DE SIMULAÇÃO ========== #
+def menu_simulacao(df):
+    st.header("🔮 Simulação de Volume Cerebral Futuro (nWBV)")
+    
+    # Carrega ou treina modelo
+    modelo = treinar_ou_carregar_modelo(df)
+
+    # Interface de entrada
+    mmse = st.slider("MMSE", 0, 30, 26)
+    cdr = st.selectbox("CDR", [0.0, 0.5, 1.0, 2.0])
+    age = st.slider("Idade atual", 60, 100, 75)
+    nwbv_atual = st.slider("nWBV atual", 0.60, 0.85, 0.72)
+
+    anos_futuros = st.slider("🔁 Quantos anos no futuro você quer simular?", 1, 10, 1)
+
+    if st.button("🔍 Simular volume cerebral futuro"):
+        # Estimar variação anual com o modelo
+        X_input = pd.DataFrame([[mmse, cdr, age, nwbv_atual]],
+                               columns=['mmse', 'cdr', 'age', 'nwbv'])
+        nwbv_1ano = modelo.predict(X_input)[0]
+
+        # Delta estimado para 1 ano
+        delta_1ano = nwbv_1ano - nwbv_atual
+
+        # Extrapolar para N anos
+        nwbv_Nanos = nwbv_atual + delta_1ano * anos_futuros
+
+        st.markdown(f"### 📈 Volume cerebral previsto em **{anos_futuros} ano(s)**: **{nwbv_Nanos:.4f}**")
+        st.caption("Previsão baseada em extrapolação linear da regressão treinada.")
 
 def menu_inicio():
     pass
