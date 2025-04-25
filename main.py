@@ -479,69 +479,244 @@ def treinar_ou_carregar_modelo_com_dados(df_train, caminho_modelo='modelo_nwbv.p
 
     return modelo
 
+
+def treinar_modelo_mmse(df):
+    df = df.copy()
+    df = df.sort_values(by=['subject_id', 'age'])
+    df['delta_tempo'] = df.groupby('subject_id')['age'].diff()
+    df['mmse_futuro'] = df.groupby('subject_id')['mmse'].shift(-1)
+    df = df[df['delta_tempo'] > 0]
+    df = df[['cdr', 'age', 'mmse', 'mmse_futuro']].dropna()
+    modelo_mmse = LinearRegression().fit(df[['cdr', 'age', 'mmse']], df['mmse_futuro'])
+    return modelo_mmse
+
+
   
+
+# def menu_simulacao(df):
+#     import plotly.graph_objects as go
+#     from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+
+#     st.header("📈 Simulação de volume cerebral futuro (nWBV)")
+
+#     # Preparar os dados
+#     df_temp = df.copy()
+#     df_temp.columns = df_temp.columns.str.strip().str.lower().str.replace(" ", "_")
+
+#     df_clean = df_temp[['subject_id', 'visit', 'age', 'mmse', 'cdr', 'nwbv', 'group']].dropna()
+#     df_clean['cdr'] = pd.to_numeric(df_clean['cdr'], errors='coerce')
+
+#     valid_subjects = df_clean['subject_id'].value_counts()[lambda x: x >= 3].index
+#     df_clean = df_clean[df_clean['subject_id'].isin(valid_subjects)]
+
+#     all_subjects = list(df_clean['subject_id'].unique())
+#     n_test = max(1, int(len(all_subjects) * 0.05))
+#     np.random.seed(3)
+#     test_subjects = np.random.choice(all_subjects, size=n_test, replace=False)
+
+#     df_test = df_clean[df_clean['subject_id'].isin(test_subjects)]
+#     df_train = df_clean[~df_clean['subject_id'].isin(test_subjects)]
+
+#     max_tempo_por_paciente = []
+#     for subject in df_clean['subject_id'].unique():
+#         paciente_df = df_clean[df_clean['subject_id'] == subject].sort_values('age')
+#         if len(paciente_df) >= 2:
+#             tempo_total = paciente_df['age'].max() - paciente_df['age'].min()
+#             max_tempo_por_paciente.append(tempo_total)
+
+#     anos_previsao = math.ceil(max(max_tempo_por_paciente)) if max_tempo_por_paciente else 3
+
+#     modelo = treinar_ou_carregar_modelo_com_dados(df_train)
+#     modelo_mmse = treinar_modelo_mmse(df_train)
+#     st.session_state['modelo_mmse'] = modelo_mmse
+
+#     col1, col2 = st.columns(2)
+
+#     with col1:
+#         st.subheader("Parâmetros de entrada")
+#         usar_teste_col, selecionar_paciente_col = st.columns([1, 2])
+#         with usar_teste_col:
+#             usar_dados_teste = st.checkbox("Usar dados de teste", value=False)
+
+#         paciente_selecionado = None
+#         paciente_df = None
+
+#         with selecionar_paciente_col:
+#             if usar_dados_teste:
+#                 paciente_selecionado = st.selectbox(
+#                     "Selecionar paciente:", 
+#                     options=test_subjects,
+#                     format_func=lambda x: f"Paciente {x}"
+#                 )
+
+#         if usar_dados_teste and paciente_selecionado:
+#             paciente_df = df_test[df_test['subject_id'] == paciente_selecionado].sort_values('age')
+#             primeira_visita = paciente_df.iloc[0]
+#             mmse = int(primeira_visita['mmse'])
+#             cdr = float(primeira_visita['cdr'])
+#             age = float(primeira_visita['age'])
+#             nwbv_atual = float(primeira_visita['nwbv'])
+#             grupo = primeira_visita['group']
+
+#             st.write(f"**MMSE:** {mmse}")
+#             st.write(f"**CDR:** {cdr}")
+#             st.write(f"**Idade inicial:** {age:.1f} anos")
+#             st.write(f"**nWBV inicial:** {nwbv_atual:.4f}")
+#             st.write(f"**Grupo:** {grupo}")
+#             st.write(f"**Número de visitas:** {len(paciente_df)}")
+#             st.write(f"**Período de acompanhamento:** {paciente_df['age'].max() - paciente_df['age'].min():.1f} anos")
+#         else:
+#             col11, col12 = st.columns(2)
+#             with col11:
+#                 mmse = st.slider("MMSE", 0, 30, 26)
+#             with col12:
+#                 cdr = st.selectbox("CDR", [0.0, 0.5, 1.0, 2.0])
+#             age = st.slider("Idade atual", 60, 100, 75)
+#             nwbv_atual = st.slider("nWBV atual", 0.60, 0.85, 0.72)
+
+#     with col2:
+#         st.subheader("Previsão de volume cerebral normalizado no tempo")
+#         btn_col, txt_col = st.columns([1, 2])
+#         with btn_col:
+#             simular = st.button("Simular nWBV futuro")
+#         with txt_col:
+#             st.caption("Previsão baseada em modelo de regressão linear.")
+
+#         if simular:
+#             if usar_dados_teste and paciente_selecionado and paciente_df is not None:
+#                 paciente_df = paciente_df.sort_values('age').copy()
+#                 paciente_df['delta_tempo'] = paciente_df['age'].diff().fillna(0)
+#                 paciente_df['tempo_acumulado'] = paciente_df['delta_tempo'].cumsum()
+#                 tempo_futuro = list(paciente_df['tempo_acumulado'].values)
+#             else:
+#                 tempo_futuro = list(np.arange(0, anos_previsao + 1))
+
+#             previsoes = [nwbv_atual]
+#             mmse_atual = mmse
+#             idade_atual = age
+#             modelo_mmse = st.session_state.get('modelo_mmse')
+
+#             for i in range(1, len(tempo_futuro)):
+#                 incremento = tempo_futuro[i] - tempo_futuro[i - 1]
+#                 idade_atual += incremento
+#                 X_mmse = pd.DataFrame([[cdr, idade_atual, mmse_atual]], columns=['cdr', 'age', 'mmse'])
+#                 mmse_atual = modelo_mmse.predict(X_mmse)[0]
+#                 X_nwbv = pd.DataFrame([[mmse_atual, cdr, idade_atual, previsoes[-1]]], columns=['mmse', 'cdr', 'age', 'nwbv'])
+#                 nwbv_pred = modelo.predict(X_nwbv)[0]
+#                 previsoes.append(nwbv_pred)
+
+#             y_true = paciente_df['nwbv'].values if usar_dados_teste and paciente_df is not None else None
+#             y_pred = previsoes[:len(y_true)] if y_true is not None else []
+#             texto_metricas = ""
+#             if y_true is not None and len(y_true) == len(y_pred):
+#                 rmse = mean_squared_error(y_true, y_pred) ** 0.5
+#                 mae = mean_absolute_error(y_true, y_pred)
+#                 r2 = r2_score(y_true, y_pred)
+#                 texto_metricas = f"RMSE: {rmse:.4f} | MAE: {mae:.4f} | R²: {r2:.4f}"
+
+#             fig = go.Figure()
+#             fig.add_trace(go.Scatter(
+#                 x=tempo_futuro,
+#                 y=previsoes,
+#                 mode='lines+markers',
+#                 name='Previsão',
+#                 line=dict(color='blue', width=3),
+#                 marker=dict(size=8, symbol='diamond')
+#             ))
+
+#             if usar_dados_teste and paciente_df is not None:
+#                 fig.add_trace(go.Scatter(
+#                     x=paciente_df['tempo_acumulado'],
+#                     y=paciente_df['nwbv'],
+#                     mode='lines+markers',
+#                     name='Dados reais',
+#                     line=dict(color='green', width=2, dash='dot'),
+#                     marker=dict(size=10, symbol='circle')
+#                 ))
+
+#             fig.update_layout(
+#                 title=texto_metricas,
+#                 xaxis_title='Tempo acumulado desde a primeira visita (anos)',
+#                 yaxis_title='nWBV',
+#                 legend=dict(x=1.02, y=1, xanchor='left'),
+#                 height=350
+#             )
+
+#             st.plotly_chart(fig)
+
+
+
+
+
+
+
+
 def menu_simulacao(df):
-    # Importar plotly.graph_objects para resolver o erro
     import plotly.graph_objects as go
-    
+    from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+
     st.header("📈 Simulação de volume cerebral futuro (nWBV)")
-    
+
     # Preparar os dados
     df_temp = df.copy()
     df_temp.columns = df_temp.columns.str.strip().str.lower().str.replace(" ", "_")
-        
-    # Selecionar colunas e eliminar NaNs
+
     df_clean = df_temp[['subject_id', 'visit', 'age', 'mmse', 'cdr', 'nwbv', 'group']].dropna()
     df_clean['cdr'] = pd.to_numeric(df_clean['cdr'], errors='coerce')
-    
-    # Filtrar indivíduos com pelo menos 3 visitas
+
     valid_subjects = df_clean['subject_id'].value_counts()[lambda x: x >= 3].index
     df_clean = df_clean[df_clean['subject_id'].isin(valid_subjects)]
-    
-    # Separar dados de teste (5% dos pacientes)
+
     all_subjects = list(df_clean['subject_id'].unique())
-    n_test = max(1, int(len(all_subjects) * 0.05))  # Pelo menos 1 paciente
-    
-    # Usar uma semente fixa para reprodutibilidade
-    np.random.seed(3)
+    n_test = max(1, int(len(all_subjects) * 0.05))
+    np.random.seed(4)
     test_subjects = np.random.choice(all_subjects, size=n_test, replace=False)
-    
-    # Dividir os dados
+
     df_test = df_clean[df_clean['subject_id'].isin(test_subjects)]
     df_train = df_clean[~df_clean['subject_id'].isin(test_subjects)]
-    
-    # Calcular o intervalo máximo de tempo por paciente
+
     max_tempo_por_paciente = []
     for subject in df_clean['subject_id'].unique():
         paciente_df = df_clean[df_clean['subject_id'] == subject].sort_values('age')
-        if len(paciente_df) >= 2:  # Pelo menos duas visitas
+        if len(paciente_df) >= 2:
             tempo_total = paciente_df['age'].max() - paciente_df['age'].min()
             max_tempo_por_paciente.append(tempo_total)
-    
-    # Obter o intervalo máximo de tempo arredondado para cima
-    if max_tempo_por_paciente:
-        max_tempo = max(max_tempo_por_paciente)
-        anos_previsao = math.ceil(max_tempo)  # Arredondar para cima
-    else:
-        anos_previsao = 3  # Valor padrão se não houver dados suficientes
-    
-    # Treinar modelo com dados de treinamento
-    modelo = treinar_ou_carregar_modelo_com_dados(df_train)
 
-    # Dividir a tela em duas colunas
+    anos_previsao = math.ceil(max(max_tempo_por_paciente)) if max_tempo_por_paciente else 3
+
+    modelo = treinar_ou_carregar_modelo_com_dados(df_train)
+    modelo_mmse = treinar_modelo_mmse(df_train)
+    st.session_state['modelo_mmse'] = modelo_mmse
+
+    # Calcular métricas de desempenho do modelo de treinamento
+    df_train_sorted = df_train.sort_values(by=['subject_id', 'age'])
+    df_train_sorted['delta_nwbv'] = df_train_sorted.groupby('subject_id')['nwbv'].diff()
+    df_train_sorted['delta_tempo'] = df_train_sorted.groupby('subject_id')['age'].diff()
+    df_train_sorted = df_train_sorted[df_train_sorted['delta_tempo'] > 0]
+    df_train_sorted['delta_nwbv_ano'] = df_train_sorted['delta_nwbv'] / df_train_sorted['delta_tempo']
+    df_train_sorted['nwbv_futuro'] = df_train_sorted['nwbv'] + df_train_sorted['delta_nwbv_ano']
+
+    df_model = df_train_sorted[['mmse', 'cdr', 'age', 'nwbv', 'nwbv_futuro']].dropna()
+    X_train = df_model[['mmse', 'cdr', 'age', 'nwbv']]
+    y_train = df_model['nwbv_futuro']
+    y_pred_train = modelo.predict(X_train)
+
+    rmse_train = mean_squared_error(y_train, y_pred_train) ** 0.5
+    mae_train = mean_absolute_error(y_train, y_pred_train)
+    r2_train = r2_score(y_train, y_pred_train)
+    texto_metricas = f"RMSE: {rmse_train:.4f} | MAE: {mae_train:.4f} | R²: {r2_train:.4f}"
+
     col1, col2 = st.columns(2)
-    
+
     with col1:
         st.subheader("Parâmetros de entrada")
-        
         usar_teste_col, selecionar_paciente_col = st.columns([1, 2])
-        
         with usar_teste_col:
             usar_dados_teste = st.checkbox("Usar dados de teste", value=False)
-        
+
         paciente_selecionado = None
         paciente_df = None
-        
+
         with selecionar_paciente_col:
             if usar_dados_teste:
                 paciente_selecionado = st.selectbox(
@@ -549,18 +724,16 @@ def menu_simulacao(df):
                     options=test_subjects,
                     format_func=lambda x: f"Paciente {x}"
                 )
-        
-        # Si un paciente de teste foi selecionado, use os dados da PRIMEIRA visita
+
         if usar_dados_teste and paciente_selecionado:
             paciente_df = df_test[df_test['subject_id'] == paciente_selecionado].sort_values('age')
-            primeira_visita = paciente_df.iloc[0]  # <-- PRIMERA visita
-            
+            primeira_visita = paciente_df.iloc[0]
             mmse = int(primeira_visita['mmse'])
             cdr = float(primeira_visita['cdr'])
             age = float(primeira_visita['age'])
             nwbv_atual = float(primeira_visita['nwbv'])
             grupo = primeira_visita['group']
-                        
+
             st.write(f"**MMSE:** {mmse}")
             st.write(f"**CDR:** {cdr}")
             st.write(f"**Idade inicial:** {age:.1f} anos")
@@ -569,15 +742,11 @@ def menu_simulacao(df):
             st.write(f"**Número de visitas:** {len(paciente_df)}")
             st.write(f"**Período de acompanhamento:** {paciente_df['age'].max() - paciente_df['age'].min():.1f} anos")
         else:
-                        
             col11, col12 = st.columns(2)
-    
             with col11:
                 mmse = st.slider("MMSE", 0, 30, 26)
-
             with col12:
                 cdr = st.selectbox("CDR", [0.0, 0.5, 1.0, 2.0])
-
             age = st.slider("Idade atual", 60, 100, 75)
             nwbv_atual = st.slider("nWBV atual", 0.60, 0.85, 0.72)
 
@@ -588,41 +757,68 @@ def menu_simulacao(df):
             simular = st.button("Simular nWBV futuro")
         with txt_col:
             st.caption("Previsão baseada em modelo de regressão linear.")
-        
+
         if simular:
-            # Para previsão, usar el período de acompanhamento real do paciente
             if usar_dados_teste and paciente_selecionado and paciente_df is not None:
-                # anos_previsao = math.ceil(paciente_df['age'].max() - paciente_df['age'].min())
-                anos_previsao = paciente_df['age'].max() - paciente_df['age'].min()
-            # Calcular previsões para os anos futuros
-            X_input = pd.DataFrame([[mmse, cdr, age, nwbv_atual]],
-                                columns=['mmse', 'cdr', 'age', 'nwbv'])
-            nwbv_1ano = modelo.predict(X_input)[0]
-            delta_1ano = nwbv_1ano - nwbv_atual
-            anos = list(range(1, anos_previsao + 1))
-            previsoes = [nwbv_atual + delta_1ano * ano for ano in anos]
-            fig = criar_grafico_previsao(nwbv_atual, previsoes, anos)
-            
-            # Si hay paciente de teste, ajustar eje X dos dados reais
-            if usar_dados_teste and paciente_selecionado and paciente_df is not None:
-                idades_relativas = paciente_df['age'] - paciente_df['age'].min()  # <-- RELATIVO à primeira visita
+                paciente_df = paciente_df.sort_values('age').copy()
+                paciente_df['delta_tempo'] = paciente_df['age'].diff().fillna(0)
+                paciente_df['tempo_acumulado'] = paciente_df['delta_tempo'].cumsum()
+                tempo_futuro = list(paciente_df['tempo_acumulado'].values)
+            else:
+                tempo_futuro = list(np.arange(0, anos_previsao + 1))
+
+            previsoes = [nwbv_atual]
+            mmse_atual = mmse
+            idade_atual = age
+            modelo_mmse = st.session_state.get('modelo_mmse')
+
+            for i in range(1, len(tempo_futuro)):
+                incremento = tempo_futuro[i] - tempo_futuro[i - 1]
+                idade_atual += incremento
+                X_mmse = pd.DataFrame([[cdr, idade_atual, mmse_atual]], columns=['cdr', 'age', 'mmse'])
+                mmse_atual = modelo_mmse.predict(X_mmse)[0]
+                X_nwbv = pd.DataFrame([[mmse_atual, cdr, idade_atual, previsoes[-1]]], columns=['mmse', 'cdr', 'age', 'nwbv'])
+                nwbv_pred = modelo.predict(X_nwbv)[0]
+                previsoes.append(nwbv_pred)
+
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(
+                x=tempo_futuro,
+                y=previsoes,
+                mode='lines+markers',
+                name='Previsão',
+                line=dict(color='blue', width=3),
+                marker=dict(size=8, symbol='diamond')
+            ))
+
+            if usar_dados_teste and paciente_df is not None:
                 fig.add_trace(go.Scatter(
-                    x=idades_relativas,
+                    x=paciente_df['tempo_acumulado'],
                     y=paciente_df['nwbv'],
-                    mode='markers+lines',
+                    mode='lines+markers',
                     name='Dados reais',
-                    marker=dict(
-                        color='green',
-                        size=10,
-                        symbol='circle'
-                    ),
-                    line=dict(
-                        color='green',
-                        width=2,
-                        dash='dot'
-                    )
+                    line=dict(color='green', width=2, dash='dot'),
+                    marker=dict(size=10, symbol='circle')
                 ))
+
+            fig.update_layout(
+                title=texto_metricas,
+                xaxis_title='Tempo acumulado desde a primeira visita (anos)',
+                yaxis_title='nWBV',
+                legend=dict(x=1.02, y=1, xanchor='left'),
+                height=350
+            )
+
             st.plotly_chart(fig)
+
+
+
+
+
+
+
+
+
       
 
 # Certifique-se de que a função criar_grafico_previsao também importa plotly.graph_objects
