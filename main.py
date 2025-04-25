@@ -452,13 +452,6 @@ def motivation_section(df):
 
         with col_mid2:
             plot_scatter_age_nwbv(filtered_df, threshold)
-            
-        
-        
-        
-        
-        
-
 
 def longitudinal_section(df):
     st.header("Análise Longitudinal de Dados de Alzheimer")
@@ -467,8 +460,6 @@ def longitudinal_section(df):
     longo do tempo em pacientes com Alzheimer e controles saudáveis, incluindo
     indivíduos que converteram de não dementes para dementes durante o estudo.
     """)
-
-
 
     # Create columns for age distribution and correlation matrix
     col1, col2 = st.columns(2)
