@@ -6,6 +6,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import joblib
 import os
+import math
 
 from sklearn.decomposition import PCA
 from sklearn.cluster import (
@@ -318,11 +319,88 @@ def treinar_ou_carregar_modelo(df, caminho_modelo='modelo_nwbv.pkl'):
     return modelo
 
 
+# def menu_simulacao(df):
+#     st.header("🔮 Simulação de volume cerebral futuro (nWBV)")
+    
+#     # Carrega ou treina modelo
+#     modelo = treinar_ou_carregar_modelo(df)
+
+#     # Dividir a tela em duas colunas
+#     col1, col2 = st.columns(2)
+    
+#     with col1:
+#         st.subheader("Parâmetros de entrada")
+        
+#         # Interface de entrada
+#         mmse = st.slider("MMSE", 0, 30, 26)
+#         cdr = st.selectbox("CDR", [0.0, 0.5, 1.0, 2.0])
+#         age = st.slider("Idade atual", 60, 100, 75)
+#         nwbv_atual = st.slider("nWBV atual", 0.60, 0.85, 0.72)
+
+#         # anos_futuros = st.slider("🔁 Anos para simulação", 1, 10, 3)        
+        
+    
+#     with col2:
+#         st.subheader("Previsão de volume cerebral normalizado no tempo")
+        
+#         simular = st.button("🔍 Simular nWBV futuro")
+        
+#         if simular:
+#             # Calcular previsões para 1, 2 e 3 anos
+#             X_input = pd.DataFrame([[mmse, cdr, age, nwbv_atual]],
+#                                   columns=['mmse', 'cdr', 'age', 'nwbv'])
+            
+#             # Previsão para 1 ano
+#             nwbv_1ano = modelo.predict(X_input)[0]
+            
+#             # Delta estimado para 1 ano
+#             delta_1ano = nwbv_1ano - nwbv_atual
+            
+#             # Calcular previsões para vários anos
+#             anos = list(range(1, 4))  # 1, 2, 3 anos
+#             previsoes = [nwbv_atual + delta_1ano * ano for ano in anos]
+            
+#             # Criar gráfico de previsão
+#             fig = criar_grafico_previsao(nwbv_atual, previsoes, anos)
+#             st.plotly_chart(fig)
+            
+#             st.caption("Previsão baseada em extrapolação linear da regressão treinada.")
+                    
+
+
 def menu_simulacao(df):
-    st.header("🔮 Simulação de volume cerebral futuro (nWBV)")
+    st.header("📈 Simulação de volume cerebral futuro (nWBV)")
     
     # Carrega ou treina modelo
     modelo = treinar_ou_carregar_modelo(df)
+    
+    
+    
+    
+    # Calcular o intervalo máximo de tempo nos dados
+    df_temp = df.copy()
+    df_temp.columns = df_temp.columns.str.strip().str.lower().str.replace(" ", "_")
+    
+    # Calcular o intervalo máximo de tempo por paciente
+    max_tempo_por_paciente = []
+    for subject in df_temp['subject_id'].unique():
+        paciente_df = df_temp[df_temp['subject_id'] == subject].sort_values('age')
+        if len(paciente_df) >= 2:  # Pelo menos duas visitas
+            tempo_total = paciente_df['age'].max() - paciente_df['age'].min()
+            max_tempo_por_paciente.append(tempo_total)
+    
+    # Obter o intervalo máximo de tempo arredondado para cima
+    if max_tempo_por_paciente:
+        max_tempo = max(max_tempo_por_paciente)
+        anos_previsao = math.ceil(max_tempo)  # Arredondar para cima
+    else:
+        anos_previsao = 3  # Valor padrão se não houver dados suficientes
+    
+    
+    
+    
+    
+    
 
     # Dividir a tela em duas colunas
     col1, col2 = st.columns(2)
@@ -335,14 +413,21 @@ def menu_simulacao(df):
         cdr = st.selectbox("CDR", [0.0, 0.5, 1.0, 2.0])
         age = st.slider("Idade atual", 60, 100, 75)
         nwbv_atual = st.slider("nWBV atual", 0.60, 0.85, 0.72)
-
-        # anos_futuros = st.slider("🔁 Anos para simulação", 1, 10, 3)        
         
     
     with col2:
         st.subheader("Previsão de volume cerebral normalizado no tempo")
         
-        simular = st.button("🔍 Simular nWBV futuro")
+        # Criar uma linha com duas colunas para o botão e o texto
+        btn_col, txt_col = st.columns([1, 2])
+        
+        with btn_col:
+            # Botão com novo ícone
+            simular = st.button("Simular nWBV futuro")
+            
+        with txt_col:
+            # Texto explicativo ao lado do botão
+            st.caption("Previsão baseada em modelo de regressão linear.")
         
         if simular:
             # Calcular previsões para 1, 2 e 3 anos
@@ -356,19 +441,16 @@ def menu_simulacao(df):
             delta_1ano = nwbv_1ano - nwbv_atual
             
             # Calcular previsões para vários anos
-            anos = list(range(1, 4))  # 1, 2, 3 anos
+            anos = list(range(1, anos_previsao + 1))  # 1, 2, 3 anos
             previsoes = [nwbv_atual + delta_1ano * ano for ano in anos]
             
             # Criar gráfico de previsão
             fig = criar_grafico_previsao(nwbv_atual, previsoes, anos)
             st.plotly_chart(fig)
-            
-            st.caption("Previsão baseada em extrapolação linear da regressão treinada.")
-        else:
-            # st.info("Clique em 'Simular volume cerebral futuro' para ver as previsões.")
-            pass
+
             
             
+
 
 def criar_grafico_previsao(nwbv_atual, previsoes, anos):
     """
